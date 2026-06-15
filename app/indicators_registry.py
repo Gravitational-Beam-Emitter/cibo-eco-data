@@ -122,6 +122,24 @@ INDICATORS = [
     {"source": "jp", "name": "Tankan Survey", "method": "tankan", "params": {},
      "description": "Tankan 短观调查 — 大型制造业 DI (Bank of Japan)", "frequency": "quarterly"},
 
+    # ── Hong Kong (AKShare) ────────────────────────────────
+    {"source": "hk", "name": "HK CPI", "method": "cpi", "params": {},
+     "description": "香港 CPI 月度同比", "frequency": "monthly"},
+    {"source": "hk", "name": "HK PPI", "method": "ppi", "params": {},
+     "description": "香港 PPI 季度同比", "frequency": "quarterly"},
+    {"source": "hk", "name": "HK GDP", "method": "gdp", "params": {},
+     "description": "香港 GDP (季度, 百万港元)", "frequency": "quarterly"},
+    {"source": "hk", "name": "HK Unemployment Rate", "method": "unemployment", "params": {},
+     "description": "香港失业率 (%)", "frequency": "monthly"},
+    {"source": "hk", "name": "HK Trade Balance", "method": "trade_balance", "params": {},
+     "description": "香港贸易差额 (亿港元)", "frequency": "monthly"},
+    {"source": "hk", "name": "HK Building Amount", "method": "building_amount", "params": {},
+     "description": "香港建造工程总值 (百万港元)", "frequency": "monthly"},
+    {"source": "hk", "name": "HK Building Volume", "method": "building_volume", "params": {},
+     "description": "香港建造工程量", "frequency": "monthly"},
+    {"source": "hk", "name": "HK HIBOR 3M", "method": "hibor_3m", "params": {},
+     "description": "香港 3个月 HIBOR (%)", "frequency": "daily"},
+
     # ── Energy (EIA) ───────────────────────────────────────
     {"source": "energy", "name": "WTI Crude Oil Price", "method": "crude_price", "params": {},
      "description": "WTI Crude Oil spot price (weekly, USD/barrel)", "frequency": "weekly"},

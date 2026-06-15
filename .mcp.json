@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "eco-data": {
+      "command": "python3",
+      "args": ["mcp/eco_data_server.py"],
+      "cwd": "/Users/a80460/Desktop/cibo eco data",
+      "description": "Eco Data Pipeline — China & Global macro indicators, cn_stock limit-up data"
+    }
+  }
+}

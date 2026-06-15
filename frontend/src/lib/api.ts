@@ -130,7 +130,21 @@ export interface MacroIndicator {
   history: { date: string; value: number }[];
 }
 
-const MACRO_IDS = [5, 7, 8, 14, 53, 32]; // PMI, M2, LPR, HousePrice, WTI, FedFunds
+const MACRO_IDS = [
+  5,   // Manufacturing PMI (CN)
+  7,   // M2 Money Supply (CN)
+  8,   // LPR (CN)
+  14,  // New House Price (CN)
+  53,  // WTI Crude Oil (Global)
+  32,  // Fed Funds Rate (US)
+  55,  // North Bound Flow (CN)
+  56,  // Margin Balance (CN)
+  59,  // 10Y Bond Yield (CN)
+  60,  // CNY/USD (CN)
+  61,  // Caixin PMI (CN)
+  63,  // Shibor 3M (CN)
+  64,  // Reserve Ratio (CN)
+] as const;
 
 /* ── Multi-date fetch functions ── */
 

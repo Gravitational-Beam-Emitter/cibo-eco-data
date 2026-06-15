@@ -19,6 +19,7 @@ Usage:
 
 from app.eco_harness.us import USHarness
 from app.eco_harness.cn import CNHarness
+from app.eco_harness.hk import HKHarness
 from app.eco_harness.global_ import GlobalHarness
 from app.eco_harness.jp import JPHarness
 from app.eco_harness.energy import EnergyHarness
@@ -31,11 +32,12 @@ except ImportError:
 
 
 class EcoHarness:
-    __slots__ = ('us', 'cn', 'global_', 'sdmx', 'jp', 'energy')
+    __slots__ = ('us', 'cn', 'hk', 'global_', 'sdmx', 'jp', 'energy')
 
     def __init__(self, fred_api_key: str = '', eia_api_key: str = ''):
         self.us = USHarness(fred_api_key)
         self.cn = CNHarness()
+        self.hk = HKHarness()
         self.global_ = GlobalHarness()
         self.sdmx = SDMXHarness() if _HAS_SDMX else None
         self.jp = JPHarness()
@@ -43,11 +45,11 @@ class EcoHarness:
 
     @property
     def available_sources(self):
-        sources = ['us', 'cn', 'global_', 'jp', 'energy']
+        sources = ['us', 'cn', 'hk', 'global_', 'jp', 'energy']
         if _HAS_SDMX:
             sources.append('sdmx')
         return sources
 
     def __repr__(self):
         status = 'sdmx' if _HAS_SDMX else 'no-sdmx'
-        return f'EcoHarness(us/cn/global_/{status}/jp/energy)'
+        return f'EcoHarness(us/cn/hk/global_/{status}/jp/energy)'

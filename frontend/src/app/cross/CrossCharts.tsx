@@ -21,6 +21,13 @@ function formatMacroValue(id: number, value: number): string {
     case 14: return value.toFixed(1);
     case 53: return `$${value.toFixed(0)}`;
     case 32: return `${value.toFixed(2)}%`;
+    case 55: return `${value.toFixed(1)}亿`;
+    case 56: return `${(value / 10000).toFixed(1)}万亿`;
+    case 59: return `${value.toFixed(2)}%`;
+    case 60: return value.toFixed(4);
+    case 61: return value.toFixed(1);
+    case 63: return `${value.toFixed(2)}%`;
+    case 64: return `${value.toFixed(1)}%`;
     default: return String(value);
   }
 }
@@ -29,6 +36,10 @@ const THRESHOLDS: Record<number, { value: number; label: string }> = {
   5: { value: 50, label: "荣枯线 50" },
   8: { value: 3.5, label: "3.5%" },
   32: { value: 4.0, label: "4.0%" },
+  59: { value: 3.0, label: "3.0% 关键位" },
+  61: { value: 50, label: "荣枯线 50" },
+  63: { value: 2.0, label: "2.0% 参考" },
+  64: { value: 7.0, label: "7.0% 历史均值" },
 };
 
 export default function CrossCharts({ trend, macro, start, end }: Props) {

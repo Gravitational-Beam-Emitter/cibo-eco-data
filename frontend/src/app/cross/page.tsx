@@ -4,7 +4,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import NavBar from "@/components/NavBar";
 import CrossCharts from "./CrossCharts";
 
-const MACRO_IDS = [5, 7, 8, 14, 53, 32];
+const MACRO_IDS = [5, 7, 8, 14, 53, 32, 55, 56, 59, 60, 61, 63, 64];
 
 function getDefaultRange() {
   const end = new Date();
