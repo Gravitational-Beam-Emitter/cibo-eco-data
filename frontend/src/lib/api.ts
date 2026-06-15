@@ -1,6 +1,36 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
 const ECO_API = process.env.NEXT_PUBLIC_ECO_API_URL || "http://127.0.0.1:8000";
 
+/* ── Multi-date aggregation types ── */
+
+export interface TrendPoint {
+  date: string;
+  zt_count: number;
+  avg_pct: number;
+  max_lbc: number;
+  sector_count: number;
+}
+
+export interface SectorRotation {
+  start: string;
+  end: string;
+  days: string[];
+  sectors: string[];
+  matrix: number[][];
+}
+
+export interface MacroObservation {
+  date: string;
+  value: number;
+}
+
+export interface MacroSeries {
+  id: number;
+  name: string;
+  data: MacroObservation[];
+}
+
+
 export interface LimitUpStock {
   date: string;
   code: string;
@@ -101,6 +131,79 @@ export interface MacroIndicator {
 }
 
 const MACRO_IDS = [5, 7, 8, 14, 53, 32]; // PMI, M2, LPR, HousePrice, WTI, FedFunds
+
+/* ── Multi-date fetch functions ── */
+
+export async function fetchTrendData(start: string, end: string): Promise<TrendPoint[]> {
+  const res = await fetch(`${API_BASE}/api/v1/trend?start=${start}&end=${end}`, {
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.data || []).map((d: Record<string, unknown>) => ({
+    date: String(d.date || "").slice(0, 10),
+    zt_count: Number(d.zt_count || 0),
+    avg_pct: Number(d.avg_pct || 0),
+    max_lbc: Number(d.max_lbc || 0),
+    sector_count: Number(d.sector_count || 0),
+  }));
+}
+
+export async function fetchSectorRotation(start: string, end: string, topN = 15): Promise<SectorRotation> {
+  const res = await fetch(`${API_BASE}/api/v1/sectors?start=${start}&end=${end}&top_n=${topN}`, {
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) return { start, end, days: [], sectors: [], matrix: [] };
+  const data = await res.json();
+  return {
+    start: data.start,
+    end: data.end,
+    days: (data.days || []).map((d: string) => String(d).slice(0, 10)),
+    sectors: data.sectors || [],
+    matrix: data.matrix || [],
+  };
+}
+
+export async function fetchNarrativesRange(start: string, end: string): Promise<Narrative[]> {
+  const res = await fetch(`${API_BASE}/api/v1/narratives/range?start=${start}&end=${end}`, {
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.narratives || []).map((n: Record<string, unknown>) => ({
+    date: String(n.date || "").slice(0, 10),
+    tag: String(n.tag || ""),
+    name: String(n.name || ""),
+    description: String(n.description || ""),
+    stocks: (n.stocks as Array<{ code: string; name: string; lbc: number }>) || [],
+  }));
+}
+
+export async function fetchMacroDataRange(macroIds: number[], start: string, end: string): Promise<MacroSeries[]> {
+  const results = await Promise.all(
+    macroIds.map(async (id) => {
+      try {
+        const res = await fetch(
+          `${ECO_API}/api/v1/data/${id}?start=${start}&end=${end}&limit=1000`,
+          { next: { revalidate: 600 } }
+        );
+        if (!res.ok) return { id, name: "", data: [] };
+        const json = await res.json();
+        return {
+          id,
+          name: json.indicator?.name || "",
+          data: (json.data || []).map((o: { date: string; value: number }) => ({
+            date: o.date.slice(0, 10),
+            value: o.value,
+          })),
+        };
+      } catch {
+        return { id, name: "", data: [] };
+      }
+    })
+  );
+  return results;
+}
 
 export async function fetchMacroBackground(): Promise<MacroIndicator[]> {
   const results = await Promise.all(

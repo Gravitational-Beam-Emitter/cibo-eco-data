@@ -32,6 +32,10 @@ from cn_stock.storage import (
     get_industry_summary,
     get_available_dates,
     get_daily_summary,
+    get_trend_data,
+    get_sector_rotation,
+    get_narratives_range,
+    get_sector_detail,
 )
 from cn_stock.pipeline import fetch_daily
 
@@ -129,6 +133,20 @@ def stock_history(code: str, limit: int = Query(default=60, le=200)):
 
 # ── Narratives ──────────────────────────────────────────────
 
+@app.get("/api/v1/narratives/range")
+def narratives_range(
+    start: str = Query(..., description="Start date YYYY-MM-DD"),
+    end: str = Query(..., description="End date YYYY-MM-DD"),
+):
+    """Get LLM-generated narratives for a date range."""
+    conn = init_db(read_only=True)
+    try:
+        narratives = get_narratives_range(conn, start, end)
+        return {"start": start, "end": end, "count": len(narratives), "narratives": narratives}
+    finally:
+        conn.close()
+
+
 @app.get("/api/v1/narratives/{date}")
 def narratives_by_date(date: str):
     """Get market narratives for a date."""
@@ -164,6 +182,69 @@ def available_dates(limit: int = Query(default=30, le=60)):
     try:
         dates = get_available_dates(conn, limit=limit)
         return {"count": len(dates), "dates": dates}
+    finally:
+        conn.close()
+
+
+# ── Trend / Backtesting ─────────────────────────────────────
+
+@app.get("/api/v1/trend")
+def trend_data(
+    start: str = Query(..., description="Start date YYYY-MM-DD"),
+    end: str = Query(..., description="End date YYYY-MM-DD"),
+):
+    """Get daily aggregate stats for a date range. Used by backtesting charts."""
+    conn = init_db(read_only=True)
+    try:
+        df = get_trend_data(conn, start, end)
+        records = df.to_dict(orient="records")
+        for r in records:
+            r["date"] = str(r["date"])
+        return {"start": start, "end": end, "count": len(records), "data": records}
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/sectors")
+def sector_rotation(
+    start: str = Query(..., description="Start date YYYY-MM-DD"),
+    end: str = Query(..., description="End date YYYY-MM-DD"),
+    top_n: int = Query(15, ge=5, le=30, description="Top N sectors to include"),
+):
+    """Get industry-date counts for sector rotation heatmap."""
+    conn = init_db(read_only=True)
+    try:
+        raw = get_sector_rotation(conn, start, end, top_n)
+        for r in raw:
+            r["date"] = str(r["date"])
+        # Extract unique sectors and build matrix
+        sectors = list(dict.fromkeys(r["industry"] for r in raw))
+        days = sorted(set(r["date"] for r in raw))
+        matrix: list[list[int]] = []
+        for sector in sectors:
+            row_vals = []
+            for day in days:
+                found = next((r["cnt"] for r in raw if r["date"] == day and r["industry"] == sector), 0)
+                row_vals.append(found)
+            matrix.append(row_vals)
+        return {"start": start, "end": end, "days": days, "sectors": sectors, "matrix": matrix}
+    finally:
+        conn.close()
+
+@app.get("/api/v1/sectors/macro")
+def sector_macro_detail(
+    start: str = Query(..., description="Start date YYYY-MM-DD"),
+    end: str = Query(..., description="End date YYYY-MM-DD"),
+    sector: str = Query(..., description="Industry name"),
+):
+    """Get daily stats for a single sector over time. Used for macro cross-analysis."""
+    conn = init_db(read_only=True)
+    try:
+        df = get_sector_detail(conn, start, end, sector)
+        records = df.to_dict(orient="records")
+        for r in records:
+            r["date"] = str(r["date"])
+        return {"sector": sector, "count": len(records), "data": records}
     finally:
         conn.close()
 

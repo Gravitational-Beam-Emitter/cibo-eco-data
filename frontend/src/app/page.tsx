@@ -1,6 +1,7 @@
 import { fetchDailyReview, fetchAvailableDates, fetchMacroBackground } from "@/lib/api";
 import DateNav from "@/components/DateNav";
 import ThemeToggle from "@/components/ThemeToggle";
+import NavBar from "@/components/NavBar";
 import StatsBar from "@/components/StatsBar";
 import MacroBar from "@/components/MacroBar";
 import NarrativeScroll from "@/components/NarrativeScroll";
@@ -42,6 +43,8 @@ export default async function Home({
           <ThemeToggle />
         </div>
       </header>
+
+      <NavBar />
 
       {!review ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">

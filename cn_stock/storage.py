@@ -231,6 +231,68 @@ def get_available_dates(conn: duckdb.DuckDBPyConnection, limit: int = 30) -> Lis
     return [str(r[0]) for r in rows]
 
 
+# ── Multi-date aggregation (for backtesting / sector rotation) ──
+
+def get_trend_data(conn: duckdb.DuckDBPyConnection, start: str, end: str) -> pd.DataFrame:
+    """Get daily aggregate stats for a date range."""
+    return conn.execute("""
+        SELECT date, COUNT(*) AS zt_count, AVG(pct) AS avg_pct,
+               MAX(lbc) AS max_lbc, COUNT(DISTINCT hybk) AS sector_count
+        FROM limit_up_stocks
+        WHERE date >= ? AND date <= ?
+        GROUP BY date
+        ORDER BY date ASC
+    """, [_norm_date(start), _norm_date(end)]).df()
+
+
+def get_sector_rotation(conn: duckdb.DuckDBPyConnection, start: str, end: str, top_n: int = 15) -> list[dict]:
+    """Get industry-date counts for sector rotation heatmap. Returns top-N sectors by total count."""
+    # First get all data
+    df = conn.execute("""
+        SELECT date, hybk AS industry, COUNT(*) AS cnt
+        FROM limit_up_stocks
+        WHERE date >= ? AND date <= ?
+        GROUP BY date, hybk
+        ORDER BY date ASC, cnt DESC
+    """, [_norm_date(start), _norm_date(end)]).df()
+    if df.empty:
+        return []
+    # Determine top-N sectors across the whole period
+    top = df.groupby("industry")["cnt"].sum().nlargest(top_n).index.tolist()
+    return df[df["industry"].isin(top)].to_dict(orient="records")
+
+
+def get_narratives_range(conn: duckdb.DuckDBPyConnection, start: str, end: str) -> list[dict]:
+    """Get LLM-generated narratives for a date range."""
+    rows = conn.execute("""
+        SELECT date, tag, name, description, stocks_json
+        FROM daily_narratives
+        WHERE date >= ? AND date <= ?
+        ORDER BY date DESC, name
+    """, [_norm_date(start), _norm_date(end)]).fetchall()
+    result = []
+    for row in rows:
+        result.append({
+            "date": str(row[0]),
+            "tag": row[1],
+            "name": row[2],
+            "description": row[3],
+            "stocks": json.loads(row[4]),
+        })
+    return result
+
+
+def get_sector_detail(conn: duckdb.DuckDBPyConnection, start: str, end: str, sector: str) -> pd.DataFrame:
+    """Get daily count and stats for a single sector over time."""
+    return conn.execute("""
+        SELECT date, COUNT(*) AS count, AVG(pct) AS avg_pct, MAX(lbc) AS max_lbc
+        FROM limit_up_stocks
+        WHERE date >= ? AND date <= ? AND hybk = ?
+        GROUP BY date
+        ORDER BY date ASC
+    """, [_norm_date(start), _norm_date(end), sector]).df()
+
+
 def get_daily_summary(conn: duckdb.DuckDBPyConnection, date: str) -> Dict[str, Any]:
     """Get a summary for a trading day."""
     row = conn.execute("""
