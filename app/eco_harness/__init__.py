@@ -20,6 +20,7 @@ Usage:
 from app.eco_harness.us import USHarness
 from app.eco_harness.cn import CNHarness
 from app.eco_harness.hk import HKHarness
+from app.eco_harness.bond import BondHarness, FuturesHarness
 from app.eco_harness.global_ import GlobalHarness
 from app.eco_harness.jp import JPHarness
 from app.eco_harness.energy import EnergyHarness
@@ -32,12 +33,14 @@ except ImportError:
 
 
 class EcoHarness:
-    __slots__ = ('us', 'cn', 'hk', 'global_', 'sdmx', 'jp', 'energy')
+    __slots__ = ('us', 'cn', 'hk', 'bond', 'futures', 'global_', 'sdmx', 'jp', 'energy')
 
     def __init__(self, fred_api_key: str = '', eia_api_key: str = ''):
         self.us = USHarness(fred_api_key)
         self.cn = CNHarness()
         self.hk = HKHarness()
+        self.bond = BondHarness()
+        self.futures = FuturesHarness()
         self.global_ = GlobalHarness()
         self.sdmx = SDMXHarness() if _HAS_SDMX else None
         self.jp = JPHarness()

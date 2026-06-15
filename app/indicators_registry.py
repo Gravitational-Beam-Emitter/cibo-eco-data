@@ -140,6 +140,46 @@ INDICATORS = [
     {"source": "hk", "name": "HK HIBOR 3M", "method": "hibor_3m", "params": {},
      "description": "香港 3个月 HIBOR (%)", "frequency": "daily"},
 
+    # ── Bond & Credit (AKShare) ────────────────────────────
+    {"source": "bond", "name": "CN 2Y Bond Yield", "method": "cn_yield_2y", "params": {},
+     "description": "中国2年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "CN 5Y Bond Yield", "method": "cn_yield_5y", "params": {},
+     "description": "中国5年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "CN 30Y Bond Yield", "method": "cn_yield_30y", "params": {},
+     "description": "中国30年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "CN 10Y-2Y Spread", "method": "cn_yield_10y_2y_spread", "params": {},
+     "description": "中国10年-2年国债利差 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "US 2Y Bond Yield", "method": "us_yield_2y", "params": {},
+     "description": "美国2年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "US 5Y Bond Yield", "method": "us_yield_5y", "params": {},
+     "description": "美国5年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "US 30Y Bond Yield", "method": "us_yield_30y", "params": {},
+     "description": "美国30年期国债收益率 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "US 10Y-2Y Spread", "method": "us_yield_10y_2y_spread", "params": {},
+     "description": "美国10年-2年国债利差 (%)", "frequency": "daily"},
+    {"source": "bond", "name": "CB Equal Weight Idx", "method": "cb_index", "params": {},
+     "description": "可转债等权指数", "frequency": "daily"},
+
+    # ── Futures (AKShare/sina) ──────────────────────────────
+    {"source": "futures", "name": "Gold Futures (SHFE)", "method": "gold_futures", "params": {},
+     "description": "沪金主力连续 AU0 收盘价 (元/克)", "frequency": "daily"},
+    {"source": "futures", "name": "Silver Futures (SHFE)", "method": "silver_futures", "params": {},
+     "description": "沪银主力连续 AG0 收盘价", "frequency": "daily"},
+    {"source": "futures", "name": "Copper Futures (SHFE)", "method": "copper_futures", "params": {},
+     "description": "沪铜主力连续 CU0 收盘价", "frequency": "daily"},
+    {"source": "futures", "name": "Rebar Futures (SHFE)", "method": "rebar_futures", "params": {},
+     "description": "螺纹钢主力连续 RB0 收盘价", "frequency": "daily"},
+    {"source": "futures", "name": "Iron Ore Futures (DCE)", "method": "iron_ore_futures", "params": {},
+     "description": "铁矿石主力连续 I0 收盘价", "frequency": "daily"},
+    {"source": "futures", "name": "Crude Futures (INE)", "method": "crude_futures", "params": {},
+     "description": "上海原油主力连续 SC0 收盘价 (元/桶)", "frequency": "daily"},
+
+    # ── Markets & Metals (AKShare) ──────────────────────────
+    {"source": "cn", "name": "Gold Benchmark", "method": "gold_benchmark", "params": {},
+     "description": "上海金基准价早盘价 (元/克)", "frequency": "daily"},
+    {"source": "cn", "name": "Carbon Price", "method": "carbon_emission", "params": {},
+     "description": "全国碳排放配额收盘价 (元/吨)", "frequency": "daily"},
+
     # ── Energy (EIA) ───────────────────────────────────────
     {"source": "energy", "name": "WTI Crude Oil Price", "method": "crude_price", "params": {},
      "description": "WTI Crude Oil spot price (weekly, USD/barrel)", "frequency": "weekly"},

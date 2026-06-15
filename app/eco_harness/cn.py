@@ -246,6 +246,29 @@ class CNHarness:
         )
         return _extract(df, date_col="报告日", value_col="利率")
 
+    def gold_benchmark(self):
+        """上海金基准价 — 早盘价 (元/克)"""
+        self._init_ak()
+        df = self._ak.spot_golden_benchmark_sge()
+        df = df[["交易时间", "早盘价"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    def carbon_emission(self):
+        """广州碳排放配额收盘价 (元/吨)"""
+        self._init_ak()
+        try:
+            df = self._ak.energy_carbon_gz()
+            return _extract(df, date_col="日期", value_col="收盘价")
+        except Exception:
+            try:
+                df = self._ak.energy_carbon_hb()
+                return _extract(df, date_col="日期", value_col="成交价")
+            except Exception:
+                return _empty()
+
     def reserve_ratio(self):
         """存款准备金率 — 大型金融机构 (%)"""
         self._init_ak()
