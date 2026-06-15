@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-_DATE_FORMATS = ["%Y年%m月份", "%Y年%m月", "%Y年第%d季度", "%Y年", "%Y. %m", "%Y.%m"]
+_DATE_FORMATS = ["%Y年%m月%d日", "%Y年%m月份", "%Y年%m月", "%Y年第%d季度", "%Y年", "%Y. %m", "%Y.%m"]
 
 
 class CNHarness:
@@ -151,6 +151,110 @@ class CNHarness:
         self._init_ak()
         df = self._ak.macro_china_freight_index()
         return _extract(df, date_col="截止日期", value_col="波罗的海综合运价指数BDI")
+
+    # -- Market sentiment indicators --
+
+    def north_bound_flow(self):
+        """北向资金每日净流入 (亿元) — 沪股通+深股通合计"""
+        self._init_ak()
+        try:
+            sh = self._ak.stock_hsgt_hist_em(symbol="沪股通")
+            sz = self._ak.stock_hsgt_hist_em(symbol="深股通")
+        except Exception:
+            return _empty()
+        sh = sh[["日期", "当日成交净买额"]].copy()
+        sh.columns = ["date", "sh"]
+        sz = sz[["日期", "当日成交净买额"]].copy()
+        sz.columns = ["date", "sz"]
+        sh["date"] = pd.to_datetime(sh["date"])
+        sz["date"] = pd.to_datetime(sz["date"])
+        merged = pd.merge(sh, sz, on="date", how="outer")
+        merged["sh"] = pd.to_numeric(merged["sh"], errors="coerce")
+        merged["sz"] = pd.to_numeric(merged["sz"], errors="coerce")
+        merged["value"] = merged["sh"].fillna(0) + merged["sz"].fillna(0)
+        merged = merged[["date", "value"]].dropna(subset=["value"]).sort_values("date")
+        return merged.reset_index(drop=True)
+
+    def margin_balance(self):
+        """融资融券余额 (亿元) — 上交所+深交所合计"""
+        self._init_ak()
+        try:
+            sh = self._ak.macro_china_market_margin_sh()
+            sz = self._ak.macro_china_market_margin_sz()
+        except Exception:
+            return _empty()
+        sh = sh[["日期", "融资融券余额"]].copy()
+        sh.columns = ["date", "sh"]
+        sz = sz[["日期", "融资融券余额"]].copy()
+        sz.columns = ["date", "sz"]
+        sh["date"] = pd.to_datetime(sh["date"])
+        sz["date"] = pd.to_datetime(sz["date"])
+        merged = pd.merge(sh, sz, on="date", how="outer")
+        merged["sh"] = pd.to_numeric(merged["sh"], errors="coerce")
+        merged["sz"] = pd.to_numeric(merged["sz"], errors="coerce")
+        merged["value"] = (merged["sh"].fillna(0) + merged["sz"].fillna(0)) / 1e4  # 万元→亿元
+        merged = merged[["date", "value"]].dropna(subset=["value"]).sort_values("date")
+        return merged.reset_index(drop=True)
+
+    def market_volume(self):
+        """上证指数成交量 (亿股)"""
+        self._init_ak()
+        df = self._ak.stock_zh_index_daily(symbol="sh000001")
+        df = df[["date", "volume"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce") / 1e8  # 股→亿股
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    def new_investors(self):
+        """A股新增投资者数量 (万户)"""
+        self._init_ak()
+        df = self._ak.stock_account_statistics_em()
+        return _extract(df, date_col="数据日期", value_col="新增投资者-数量")
+
+    def bond_yield_10y(self):
+        """中国10年期国债收益率 (%)"""
+        self._init_ak()
+        df = self._ak.bond_zh_us_rate()
+        return _extract(df, date_col="日期", value_col="中国国债收益率10年")
+
+    def cny_usd(self):
+        """人民币汇率中间价 (USD/CNY)"""
+        self._init_ak()
+        df = self._ak.currency_boc_safe()
+        return _extract(df, date_col="日期", value_col="美元")
+
+    def caixin_pmi(self):
+        """财新制造业 PMI"""
+        self._init_ak()
+        df = self._ak.macro_china_cx_pmi_yearly()
+        return _from_financial_calendar(df)
+
+    def enterprise_boom(self):
+        """企业景气指数"""
+        self._init_ak()
+        df = self._ak.macro_china_enterprise_boom_index()
+        return _extract(df, date_col="季度", value_col="企业景气指数-指数")
+
+    def shibor_3m(self):
+        """Shibor 3个月利率 (%)"""
+        self._init_ak()
+        df = self._ak.rate_interbank(
+            market="上海银行同业拆借市场",
+            symbol="Shibor人民币",
+            indicator="3月",
+        )
+        return _extract(df, date_col="报告日", value_col="利率")
+
+    def reserve_ratio(self):
+        """存款准备金率 — 大型金融机构 (%)"""
+        self._init_ak()
+        df = self._ak.macro_china_reserve_requirement_ratio()
+        df = df[["生效时间", "大型金融机构-调整后"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = _parse_date_series(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
 
 
 def _from_financial_calendar(df: pd.DataFrame) -> pd.DataFrame:
