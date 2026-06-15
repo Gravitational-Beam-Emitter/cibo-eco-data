@@ -1,0 +1,96 @@
+"""
+Eco Data HTTP Client — thin wrapper around the REST API.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+import requests
+
+
+class EcoDataClient:
+    """Synchronous HTTP client for the Eco Data API."""
+
+    def __init__(self, base_url: str = "http://localhost:8000", timeout: int = 30):
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self._session = requests.Session()
+
+    def _get(self, path: str, params: Optional[dict] = None) -> Any:
+        resp = self._session.get(
+            f"{self.base_url}{path}",
+            params=params,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def _post(self, path: str, params: Optional[dict] = None) -> Any:
+        resp = self._session.post(
+            f"{self.base_url}{path}",
+            params=params,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # ── Indicators ─────────────────────────────────────────
+
+    def list_indicators(self, source: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List all indicators. Filter by source (cn, us, global_, jp, energy)."""
+        params = {}
+        if source:
+            params["source"] = source
+        return self._get("/api/v1/indicators", params)
+
+    def get_indicator(self, indicator_id: int) -> Dict[str, Any]:
+        """Get metadata for a single indicator."""
+        return self._get(f"/api/v1/indicators/{indicator_id}")
+
+    def search(self, query: str) -> List[Dict[str, Any]]:
+        """Search indicators by keyword."""
+        return self._get("/api/v1/indicators/search", {"q": query})
+
+    # ── Data ───────────────────────────────────────────────
+
+    def query_data(
+        self,
+        indicator_id: int,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """Query time-series observations. Returns {indicator, count, data}."""
+        params: Dict[str, Any] = {"limit": limit}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._get(f"/api/v1/data/{indicator_id}", params)
+
+    def latest(self, indicator_id: int) -> Dict[str, Any]:
+        """Get the most recent observation."""
+        return self._get(f"/api/v1/data/{indicator_id}/latest")
+
+    # ── Actions ─────────────────────────────────────────────
+
+    def fetch(self, source: Optional[str] = None) -> Dict[str, Any]:
+        """Trigger a data refresh from upstream sources."""
+        params = {}
+        if source:
+            params["source"] = source
+        return self._post("/api/v1/fetch", params)
+
+    def health(self) -> Dict[str, Any]:
+        """Service health check."""
+        return self._get("/api/v1/health")
+
+    def close(self) -> None:
+        self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()

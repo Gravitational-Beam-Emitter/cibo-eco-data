@@ -1,0 +1,12 @@
+.env
+.env.local
+eco_data.duckdb
+eco_data.duckdb.wal
+cn_stock.duckdb
+cn_stock.duckdb.wal
+__pycache__/
+*.pyc
+node_modules/
+.next/
+.DS_Store
+.claude/
