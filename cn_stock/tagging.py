@@ -228,7 +228,7 @@ def generate_narratives(df: pd.DataFrame) -> List[Dict[str, Any]]:
 {ladder_summary}
 
 请从以上涨停股中，归纳出5-10个当日市场主线叙事。每个主线包含：
-1. tag: 1个emoji图标
+1. tag: 主线简称（2-4字，如"半导体""AI算力""低空经济"，不用emoji）
 2. name: 主线名称（8字以内）
 3. description: 2-3句话描述该主线的驱动逻辑和持续性判断
 4. stocks: 该主线下的涨停股代码和名称列表（每个含code, name, lbc连板数）
@@ -239,7 +239,7 @@ def generate_narratives(df: pd.DataFrame) -> List[Dict[str, Any]]:
 - 描述要专业、有洞见，能帮助读者理解市场逻辑
 
 返回严格JSON数组：
-[{{"tag": "🤖", "name": "主线名称", "description": "主线描述...", "stocks": [{{"code": "000768", "name": "中航西飞", "lbc": 1}}]}}]"""
+[{{"tag": "半导体", "name": "主线名称", "description": "主线描述...", "stocks": [{{"code": "000768", "name": "中航西飞", "lbc": 1}}]}}]"""
 
     text = _call_llm(system_prompt, user_prompt)
     if not text:

@@ -207,7 +207,7 @@ export default function SectorCharts({ rotation, narratives, start, end }: Props
                     {items.map((n, j) => (
                       <div key={j} className="mb-2 last:mb-0">
                         <div className="text-sm text-ink font-medium">
-                          {n.tag} {n.name}
+                          {n.name}
                         </div>
                         <div className="text-xs text-muted line-clamp-2 mt-0.5">{n.description}</div>
                       </div>
