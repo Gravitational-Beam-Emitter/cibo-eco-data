@@ -38,7 +38,7 @@ class EcoDataClient:
     # ── Indicators ─────────────────────────────────────────
 
     def list_indicators(self, source: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List all indicators. Filter by source (cn, us, global_, jp, energy)."""
+        """List all indicators. Filter by source (us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co)."""
         params = {}
         if source:
             params["source"] = source
@@ -49,8 +49,16 @@ class EcoDataClient:
         return self._get(f"/api/v1/indicators/{indicator_id}")
 
     def search(self, query: str) -> List[Dict[str, Any]]:
-        """Search indicators by keyword."""
+        """Search indicators by keyword (name, description, tags, or source)."""
         return self._get("/api/v1/indicators/search", {"q": query})
+
+    def list_tags(self) -> List[Dict[str, Any]]:
+        """List all tags with indicator counts. Use to browse data by topic."""
+        return self._get("/api/v1/tags")
+
+    def query_by_tag(self, tag: str) -> List[Dict[str, Any]]:
+        """List indicators matching a specific tag (e.g. '通胀', 'AI算力', '数据中心')."""
+        return self._get("/api/v1/indicators", {"tag": tag})
 
     # ── Data ───────────────────────────────────────────────
 

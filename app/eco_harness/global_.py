@@ -23,34 +23,46 @@ class GlobalHarness:
 
     # -- World Bank WDI --
 
-    def gdp(self, country: str, mrv: int = 5):
+    def gdp(self, country: str, mrv: int = 5, full: bool = False):
         """GDP (current USD) — NY.GDP.MKTP.CD. country='CHN','USA','JPN','WLD'"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('NY.GDP.MKTP.CD', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('NY.GDP.MKTP.CD', country, mrv=mrv)
 
-    def gdp_per_capita(self, country: str, mrv: int = 5):
+    def gdp_per_capita(self, country: str, mrv: int = 5, full: bool = False):
         """GDP per capita (current USD) — NY.GDP.PCAP.CD"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('NY.GDP.PCAP.CD', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('NY.GDP.PCAP.CD', country, mrv=mrv)
 
-    def gdp_growth(self, country: str, mrv: int = 5):
+    def gdp_growth(self, country: str, mrv: int = 5, full: bool = False):
         """GDP growth (annual %) — NY.GDP.MKTP.KD.ZG"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('NY.GDP.MKTP.KD.ZG', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('NY.GDP.MKTP.KD.ZG', country, mrv=mrv)
 
-    def cpi(self, country: str, mrv: int = 5):
+    def cpi(self, country: str, mrv: int = 5, full: bool = False):
         """CPI inflation (annual %) — FP.CPI.TOTL.ZG"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('FP.CPI.TOTL.ZG', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('FP.CPI.TOTL.ZG', country, mrv=mrv)
 
-    def population(self, country: str, mrv: int = 5):
+    def population(self, country: str, mrv: int = 5, full: bool = False):
         """Total population — SP.POP.TOTL"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('SP.POP.TOTL', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('SP.POP.TOTL', country, mrv=mrv)
 
-    def trade_balance(self, country: str, mrv: int = 5):
+    def trade_balance(self, country: str, mrv: int = 5, full: bool = False):
         """Trade balance % GDP — NE.RSB.GNFS.ZS"""
         self._init_wb()
+        if full:
+            return self._wb.data.DataFrame('NE.RSB.GNFS.ZS', country, time=range(1960, 2026))
         return self._wb.data.DataFrame('NE.RSB.GNFS.ZS', country, mrv=mrv)
 
     def get(self, indicator: str, country: str, mrv: int = 5):

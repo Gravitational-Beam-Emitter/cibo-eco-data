@@ -47,22 +47,41 @@ class CNHarness:
         return df.reset_index(drop=True)
 
     def gdp_yoy(self):
-        """中国 GDP 同比增速 (%)"""
+        """中国 GDP 同比增速 (%) — 从单季度绝对值计算"""
         self._init_ak()
-        df = self._ak.macro_china_gdp_yearly()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_gdp()
+        df = df[~df["季度"].str.contains("-")]
+        df["date"] = df["季度"].apply(_parse_quarter)
+        df["value"] = pd.to_numeric(df["国内生产总值-绝对值"], errors="coerce")
+        df = df[["date", "value"]].dropna().sort_values("date")
+        # Compute YoY: compare each quarter with same quarter last year
+        df["date_dt"] = pd.to_datetime(df["date"])
+        df["year"] = df["date_dt"].dt.year
+        df["quarter"] = df["date_dt"].dt.quarter
+        df = df.merge(
+            df[["year", "quarter", "value"]],
+            on=["year", "quarter"],
+            how="left",
+            suffixes=("", "_dup")
+        )
+        # Shift: current year's value vs previous year's same-quarter value
+        df["value_prev"] = df.groupby("quarter")["value"].shift(1)
+        df["value_yoy"] = ((df["value"] - df["value_prev"]) / df["value_prev"]) * 100
+        result = df.dropna(subset=["value_yoy"])[["date", "value_yoy"]].copy()
+        result.columns = ["date", "value"]
+        return result.sort_values("date").reset_index(drop=True)
 
     def cpi(self):
-        """中国 CPI 月度同比/环比"""
+        """中国 CPI 月度同比 (%) — NBS 直连"""
         self._init_ak()
-        df = self._ak.macro_china_cpi_monthly()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_cpi()
+        return _extract(df, date_col="月份", value_col="全国-同比增长")
 
     def ppi(self):
-        """中国 PPI 月度同比"""
+        """中国 PPI 月度同比 (%) — NBS 直连"""
         self._init_ak()
-        df = self._ak.macro_china_ppi_yearly()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_ppi()
+        return _extract(df, date_col="月份", value_col="当月同比增长")
 
     def pmi(self):
         """中国官方制造业 PMI"""
@@ -71,10 +90,10 @@ class CNHarness:
         return _extract(df, date_col="月份", value_col="制造业-指数")
 
     def non_manufacturing_pmi(self):
-        """中国非制造业 PMI"""
+        """中国非制造业 PMI — 复用 macro_china_pmi (NBS 直连)"""
         self._init_ak()
-        df = self._ak.macro_china_non_man_pmi()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_pmi()
+        return _extract(df, date_col="月份", value_col="非制造业-指数")
 
     def m2(self):
         """中国 M2 货币供应量 (亿元)"""
@@ -107,10 +126,10 @@ class CNHarness:
         return _extract(df, date_col="月份", value_col="国家外汇储备-数值")
 
     def industrial_production(self):
-        """中国工业增加值同比 (%)"""
+        """中国工业增加值同比 (%) — NBS 直连"""
         self._init_ak()
-        df = self._ak.macro_china_industrial_production_yoy()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_gyzjz()
+        return _extract(df, date_col="月份", value_col="同比增长")
 
     def fixed_asset_investment(self):
         """中国固定资产投资当月 (亿元)"""
@@ -125,10 +144,15 @@ class CNHarness:
         return _extract(df, date_col="月份", value_col="当月")
 
     def trade_balance(self):
-        """中国贸易差额 (亿美元)"""
+        """中国贸易差额 (亿美元) — 海关进出口差值"""
         self._init_ak()
-        df = self._ak.macro_china_trade_balance()
-        return _from_financial_calendar(df)
+        df = self._ak.macro_china_hgjck()
+        df = df[["月份", "当月出口额-金额", "当月进口额-金额"]].copy()
+        df["value"] = (pd.to_numeric(df["当月出口额-金额"], errors="coerce") -
+                       pd.to_numeric(df["当月进口额-金额"], errors="coerce")) / 1e8  # 美元→亿美元
+        df["date"] = _parse_date_series(df["月份"])
+        df = df[["date", "value"]].dropna(subset=["value"]).sort_values("date")
+        return df.reset_index(drop=True)
 
     def new_house_price(self):
         """中国 70 城新建住宅价格指数 (全国均值)"""
@@ -276,6 +300,69 @@ class CNHarness:
         df = df[["生效时间", "大型金融机构-调整后"]].copy()
         df.columns = ["date", "value"]
         df["date"] = _parse_date_series(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    # -- EastMoney direct (bypasses AKShare for speed/reliability) --
+
+    def _em_get(self, report_name: str, columns: str = "ALL", page_size: int = 500,
+                sort_col: str = "REPORT_DATE") -> list:
+        """Fetch from EastMoney datacenter API, return list of dicts."""
+        import requests
+        url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        params = {
+            "reportName": report_name,
+            "columns": columns,
+            "pageSize": str(page_size),
+            "sortColumns": sort_col,
+            "sortTypes": "-1",
+            "source": "WEB", "client": "WEB",
+            "p": "1", "pageNo": "1", "pageNum": "1",
+        }
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise RuntimeError(f"EastMoney API error: {data.get('message')}")
+        return data["result"]["data"]
+
+    def consumer_confidence(self):
+        """消费者信心指数 — EastMoney 直连"""
+        rows = self._em_get("RPT_ECONOMY_FAITH_INDEX")
+        df = pd.DataFrame(rows)
+        df = df[["REPORT_DATE", "CONSUMERS_FAITH_INDEX"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    def consumer_expectation(self):
+        """消费者预期指数 — EastMoney 直连"""
+        rows = self._em_get("RPT_ECONOMY_FAITH_INDEX")
+        df = pd.DataFrame(rows)
+        df = df[["REPORT_DATE", "CONSUMERS_EXPECT_INDEX"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    def enterprise_goods_price(self):
+        """企业商品价格指数 (CGPI) 同比 (%) — EastMoney 直连"""
+        rows = self._em_get("RPT_ECONOMY_GOODS_INDEX")
+        df = pd.DataFrame(rows)
+        df = df[["REPORT_DATE", "BASE_SAME"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
+
+    def m1_money_supply(self):
+        """中国 M1 货币供应量 (亿元) — EastMoney 直连"""
+        rows = self._em_get("RPT_ECONOMY_CURRENCY_SUPPLY")
+        df = pd.DataFrame(rows)
+        df = df[["REPORT_DATE", "CURRENCY"]].copy()
+        df.columns = ["date", "value"]
+        df["date"] = pd.to_datetime(df["date"])
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         return df.dropna(subset=["value"]).sort_values("date").reset_index(drop=True)
 

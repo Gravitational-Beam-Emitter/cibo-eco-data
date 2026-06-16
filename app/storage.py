@@ -36,10 +36,15 @@ def init_db(db_path: str | Path | None = None) -> duckdb.DuckDBPyConnection:
             params VARCHAR NOT NULL DEFAULT '{}',
             description VARCHAR,
             frequency VARCHAR,
+            tags VARCHAR DEFAULT '',
             last_updated TIMESTAMP,
             UNIQUE(source, method, params)
         )
     """)
+    # Migration: add tags column if missing (for existing DBs)
+    cols = [r[0] for r in conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name='indicators'").fetchall()]
+    if "tags" not in cols:
+        conn.execute("ALTER TABLE indicators ADD COLUMN tags VARCHAR DEFAULT ''")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS observations (
             indicator_id INTEGER NOT NULL,
@@ -58,6 +63,7 @@ def init_db(db_path: str | Path | None = None) -> duckdb.DuckDBPyConnection:
 def upsert_indicator(conn: duckdb.DuckDBPyConnection, indicator: dict) -> int:
     """Insert or update an indicator, return its id."""
     params_json = json.dumps(indicator.get("params", {}), ensure_ascii=False)
+    tags = indicator.get("tags", "")
     # SELECT first to avoid DuckDB FK constraint issue with ON CONFLICT
     existing = conn.execute(
         "SELECT id FROM indicators WHERE source=? AND method=? AND params=?",
@@ -66,13 +72,13 @@ def upsert_indicator(conn: duckdb.DuckDBPyConnection, indicator: dict) -> int:
     if existing:
         indicator_id = existing[0]
         conn.execute(
-            "UPDATE indicators SET name=?, description=?, frequency=? WHERE id=?",
-            [indicator["name"], indicator.get("description", ""), indicator.get("frequency", ""), indicator_id]
+            "UPDATE indicators SET name=?, description=?, frequency=?, tags=? WHERE id=?",
+            [indicator["name"], indicator.get("description", ""), indicator.get("frequency", ""), tags, indicator_id]
         )
         return indicator_id
     result = conn.execute(
-        "INSERT INTO indicators (source, name, method, params, description, frequency) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
-        [indicator["source"], indicator["name"], indicator["method"], params_json, indicator.get("description", ""), indicator.get("frequency", "")]
+        "INSERT INTO indicators (source, name, method, params, description, frequency, tags) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+        [indicator["source"], indicator["name"], indicator["method"], params_json, indicator.get("description", ""), indicator.get("frequency", ""), tags]
     )
     return result.fetchone()[0]
 
@@ -156,13 +162,39 @@ def get_data(
 
 
 def search_indicators(conn: duckdb.DuckDBPyConnection, query: str) -> pd.DataFrame:
-    """Full-text-like search across indicator name and description."""
+    """Full-text-like search across indicator name, description, and tags."""
     pattern = f"%{query}%"
     return conn.execute("""
         SELECT * FROM indicators
-        WHERE name ILIKE ? OR description ILIKE ? OR source ILIKE ?
+        WHERE name ILIKE ? OR description ILIKE ? OR source ILIKE ? OR tags ILIKE ?
         ORDER BY source, id
-    """, [pattern, pattern, pattern]).df()
+    """, [pattern, pattern, pattern, pattern]).df()
+
+
+def get_all_tags(conn: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Return all unique tags with indicator counts, sorted by popularity."""
+    rows = conn.execute("""
+        SELECT tags FROM indicators WHERE tags IS NOT NULL AND tags != ''
+    """).fetchall()
+    tag_counts: dict[str, int] = {}
+    for (tag_str,) in rows:
+        for t in tag_str.split(","):
+            t = t.strip()
+            if t:
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+    return sorted(
+        [{"tag": tag, "count": count} for tag, count in tag_counts.items()],
+        key=lambda x: x["count"], reverse=True
+    )
+
+
+def get_indicators_by_tag(conn: duckdb.DuckDBPyConnection, tag: str) -> pd.DataFrame:
+    """Return indicators matching a specific tag."""
+    pattern = f"%{tag}%"
+    return conn.execute(
+        "SELECT * FROM indicators WHERE tags ILIKE ? ORDER BY source, id",
+        [pattern]
+    ).df()
 
 
 def observation_count(conn: duckdb.DuckDBPyConnection, indicator_id: int) -> int:

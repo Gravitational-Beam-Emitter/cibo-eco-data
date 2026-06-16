@@ -20,13 +20,15 @@ from app.storage import (
     get_indicator,
     get_data,
     search_indicators,
+    get_all_tags,
+    get_indicators_by_tag,
 )
 from app.pipeline import run_once
 
 app = FastAPI(
     title="Eco Data API",
-    description="Unified macroeconomic data access — FRED, AKShare, World Bank, BoJ, EIA.",
-    version="1.0.0",
+    description="Unified macroeconomic data access — 21 sources: FRED, AKShare, World Bank, BoJ, EIA, GitHub, HuggingFace, DeFi Llama, Polymarket, CoinGecko, AI Infrastructure, AI Company Financials, and more.",
+    version="1.1.0",
 )
 
 # ── Startup ──────────────────────────────────────────────────
@@ -41,11 +43,17 @@ def _startup():
 
 
 @app.get("/api/v1/indicators")
-def list_indicators(source: Optional[str] = Query(None, description="Filter by source: us, cn, global_, jp, energy")):
-    """List all available indicators with metadata."""
+def list_indicators(
+    source: Optional[str] = Query(None, description="Filter by source: us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co"),
+    tag: Optional[str] = Query(None, description="Filter by tag (e.g. 通胀, 就业, AI算力, 数据中心)"),
+):
+    """List all available indicators with metadata. Filter by source and/or tag."""
     conn = init_db()
     try:
-        df = get_indicators(conn, source=source)
+        if tag:
+            df = get_indicators_by_tag(conn, tag)
+        else:
+            df = get_indicators(conn, source=source)
         return _df_to_list(df)
     finally:
         conn.close()
@@ -53,11 +61,21 @@ def list_indicators(source: Optional[str] = Query(None, description="Filter by s
 
 @app.get("/api/v1/indicators/search")
 def search_indicators_api(q: str = Query(..., description="Search query")):
-    """Search indicators by keyword."""
+    """Search indicators by keyword (name, description, tags, or source)."""
     conn = init_db()
     try:
         df = search_indicators(conn, q)
         return _df_to_list(df)
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/tags")
+def list_tags():
+    """List all tags with indicator counts. Browse data by topic without knowing keywords."""
+    conn = init_db()
+    try:
+        return get_all_tags(conn)
     finally:
         conn.close()
 
@@ -138,7 +156,7 @@ def latest_value(indicator_id: int):
 
 @app.post("/api/v1/fetch")
 def trigger_fetch(
-    source: Optional[str] = Query(None, description="Limit to one source: cn, us, global_, jp, energy"),
+    source: Optional[str] = Query(None, description="Limit to one source (us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co)"),
 ):
     """Trigger a data fetch. Without source=, fetches all."""
     sources = [source] if source else None

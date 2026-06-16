@@ -24,7 +24,14 @@ class EnergyHarness:
         resp.raise_for_status()
         data = resp.json()
         if 'response' in data and 'data' in data['response']:
-            return pd.DataFrame(data['response']['data'])
+            df = pd.DataFrame(data['response']['data'])
+            # Normalize: EIA v2 uses 'period' for date
+            if 'period' in df.columns:
+                df = df.rename(columns={'period': 'date'})
+            df = df[['date', 'value']].copy()
+            df['date'] = pd.to_datetime(df['date'])
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            return df.dropna(subset=['value']).sort_values('date').reset_index(drop=True)
         return pd.DataFrame(data.get('series', []))
 
     def crude_price(self):
@@ -35,10 +42,10 @@ class EnergyHarness:
                             'facets[product][]': 'EPCWTI'})
 
     def natural_gas_price(self):
-        """Henry Hub Natural Gas spot price (monthly)."""
+        """Henry Hub Natural Gas spot price (monthly, USD/MMBtu)."""
         return self._get('natural-gas/pri/fut/data',
                          frequency='monthly', offset=0, length=5000,
                          **{'data[0]': 'value',
-                            'facets[series][]': 'RNGC1',
+                            'facets[series][]': 'RNGWHHD',
                             'sort[0][column]': 'period',
                             'sort[0][direction]': 'asc'})
