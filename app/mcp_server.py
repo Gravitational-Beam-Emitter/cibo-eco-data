@@ -40,6 +40,7 @@ SOURCE_META = {
     "defi": {"label": "DeFi & Prediction Markets","provider": "Polymarket + DeFi Llama + CoinGecko", "key_required": False, "description": "链上金融: Polymarket预测市场交易量, DeFi DEX/衍生品TVL, RWA代币化规模, CEX交易量", "category": "macro"},
     "ai":   {"label": "AI Infrastructure",           "provider": "FRED (Federal Reserve Economic Data)", "key_required": True,  "description": "AI全供应链: SOX半导体指数, Kelly数据中心指数, 云计算指数, 半导体/PCB/存储/网络设备/变压器PPI, 制造业建设(芯片fab), 铀/铜/锂价格, 核电发电, 电价, AI机器人指数", "category": "macro"},
     "ai_co": {"label": "AI Company Financials",       "provider": "Yahoo Finance (yfinance)",         "key_required": False, "description": "AI供应链企业财报: NVIDIA/TSMC/ASML/Broadcom营收利润, 微软/亚马逊/谷歌/Meta营收及CapEx, 四大云厂商合计AI基础设施投资", "category": "macro"},
+    "cb":  {"label": "A-Share Concept Boards",        "provider": "AKShare (东方财富概念板块)",       "key_required": False, "description": "A股概念板块指数: 光通信/CPO/算力/数据中心/液冷/AI芯片/存储芯片/国产芯片/汽车芯片/半导体/小金属/磷化工/PCB (13个板块)", "category": "macro"},
     "aml":  {"label": "AML/CFT Country Risk Ratings", "provider": "FATF + US State Dept + Basel Institute", "key_required": False, "description": "反洗钱国家风险评级: FATF黑/灰名单(26国), 美国INCSR洗钱关注国(81国), Basel AML指数综合评分(65国)", "category": "country_risk"},
     "sanctions": {"label": "Sanctions & Corruption", "provider": "OFAC + Transparency International", "key_required": False, "description": "制裁与腐败: OFAC SDN制裁名单(19,065实体/个人/船舶/飞行器), 按国家聚合制裁数量, TI腐败感知指数CPI(180国评分排名)", "category": "country_risk"},
     "name_screening": {"label": "Name Screening (中英文)", "provider": "OpenSanctions + GDELT + 阿里云法院", "key_required": False, "description": "名称筛查: OpenSanctions制裁+PEP数据库(440K+实体,含中文名), GDELT全球负面新闻, 阿里云信数科技中国法院涉诉(失信/被执行/裁判文书), 中英文模糊匹配+拼音跨文字搜索", "category": "name_screening"},
@@ -49,7 +50,7 @@ SOURCE_META = {
 TOOLS = [
     {
         "name": "data_sources",
-        "description": "List all 24 data sources with metadata: provider, whether an API key is required, and description of what data each source provides. Start here to understand the full scope of available data.",
+        "description": "List all 25 data sources with metadata: provider, whether an API key is required, and description of what data each source provides. Start here to understand the full scope of available data.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -60,7 +61,7 @@ TOOLS = [
             "properties": {
                 "source": {
                     "type": "string",
-                    "description": "Filter by source: us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co, aml, sanctions, name_screening (optional)",
+                    "description": "Filter by source: us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co, cb, aml, sanctions, name_screening (optional)",
                 },
             },
         },
@@ -103,7 +104,7 @@ TOOLS = [
     },
     {
         "name": "trigger_fetch",
-        "description": "Trigger a data refresh from upstream sources. Can filter by source (us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co, aml, sanctions, name_screening).",
+        "description": "Trigger a data refresh from upstream sources. Can filter by source (us, cn, global_, hk, jp, euro, uk, de, au, ca, ch, bond, futures, shipping, banks, alt, llm, defi, energy, ai, ai_co, cb, aml, sanctions, name_screening).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -140,7 +141,7 @@ TOOLS = [
     },
     {
         "name": "data_sources_by_category",
-        "description": "List all data sources grouped by three categories: macro (21 sources — US, China, Eurozone, Japan, etc.), country_risk (AML ratings, sanctions, CPI), and name_screening (OpenSanctions PEP/sanctions database with Chinese+English fuzzy search). Use this for a structured overview of the entire data platform.",
+        "description": "List all data sources grouped by three categories: macro (22 sources — US, China, Eurozone, Japan, A-share concept boards, etc.), country_risk (AML ratings, sanctions, CPI), and name_screening (OpenSanctions PEP/sanctions database with Chinese+English fuzzy search). Use this for a structured overview of the entire data platform.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -386,10 +387,10 @@ def handle_request(req: dict) -> Optional[dict]:
                 "name": SERVER_NAME,
                 "version": SERVER_VERSION,
                 "description": "Global economic intelligence platform — three data tiers: "
-                               "MACRO (21 sources: US/FRED, China/AKShare, Eurozone, UK, Germany, Japan, "
+                               "MACRO (22 sources: US/FRED, China/AKShare, Eurozone, UK, Germany, Japan, "
                                "Australia, Canada, Switzerland, Hong Kong, World Bank, bond & futures, "
                                "shipping, central bank rates, alternative, LLM ecosystem, DeFi, energy/EIA, "
-                               "AI infrastructure, AI company financials), "
+                               "AI infrastructure, AI company financials, A-share concept boards), "
                                "COUNTRY RISK (FATF/INCSR/Basel AML ratings, OFAC sanctions, TI CPI), "
                                "NAME SCREENING (OpenSanctions 383K entities, Chinese+English fuzzy search). "
                                "Use data_sources_by_category for structured overview, data_sources or "

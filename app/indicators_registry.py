@@ -1200,6 +1200,60 @@ INDICATORS = [
      "tags": "AI产业链,AI公司财务,增长",
     },
 
+    # ── A-Share Concept Boards (A股概念板块) ──────────────────────────
+    {"source": "cb", "name": "光通信模块指数", "method": "optical_comm", "params": {},
+     "description": "A股光通信模块概念板块指数 — 光纤/光芯片/光模块 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,数据中心,光通信,光芯片",
+    },
+    {"source": "cb", "name": "CPO概念指数", "method": "cpo", "params": {},
+     "description": "A股CPO（共封装光学）概念板块指数 — 光芯片/CPO/硅光 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,光通信,光芯片",
+    },
+    {"source": "cb", "name": "算力概念指数", "method": "computing_power", "params": {},
+     "description": "A股算力概念板块指数 — AI算力/数据中心/服务器 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,数据中心",
+    },
+    {"source": "cb", "name": "数据中心指数", "method": "data_center", "params": {},
+     "description": "A股数据中心概念板块指数 — IDC/算力基础设施 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,数据中心",
+    },
+    {"source": "cb", "name": "液冷概念指数", "method": "liquid_cooling", "params": {},
+     "description": "A股液冷概念板块指数 — 数据中心散热/AI服务器液冷 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,数据中心,能源电力",
+    },
+    {"source": "cb", "name": "AI芯片指数", "method": "ai_chip", "params": {},
+     "description": "A股AI芯片概念板块指数 — 人工智能专用芯片 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,半导体,芯片",
+    },
+    {"source": "cb", "name": "存储芯片指数", "method": "storage_chip", "params": {},
+     "description": "A股存储芯片概念板块指数 — NAND/DRAM/HBM (Daily)", "frequency": "daily",
+     "tags": "AI产业链,AI算力,半导体,芯片",
+    },
+    {"source": "cb", "name": "国产芯片指数", "method": "domestic_chip", "params": {},
+     "description": "A股国产芯片概念板块指数 — 芯片国产替代/半导体 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,半导体,芯片",
+    },
+    {"source": "cb", "name": "汽车芯片指数", "method": "auto_chip", "params": {},
+     "description": "A股汽车芯片概念板块指数 — IGBT/MCU/车规芯片 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,半导体,芯片",
+    },
+    {"source": "cb", "name": "半导体概念指数", "method": "semiconductor", "params": {},
+     "description": "A股半导体概念板块指数 — 芯片/集成电路/晶圆 (Daily)", "frequency": "daily",
+     "tags": "AI产业链,半导体,芯片",
+    },
+    {"source": "cb", "name": "小金属概念指数", "method": "minor_metals", "params": {},
+     "description": "A股小金属概念板块指数 — 磷化铟/镓/锗/稀土 (Daily)", "frequency": "daily",
+     "tags": "原材料,半导体",
+    },
+    {"source": "cb", "name": "磷化工指数", "method": "phosphate_chem", "params": {},
+     "description": "A股磷化工概念板块指数 — 磷化铟上游/磷矿/磷肥 (Daily)", "frequency": "daily",
+     "tags": "原材料,半导体",
+    },
+    {"source": "cb", "name": "PCB指数", "method": "pcb", "params": {},
+     "description": "A股PCB概念板块指数 — 覆铜板/印制电路板/CCL (Daily)", "frequency": "daily",
+     "tags": "AI产业链,半导体,原材料",
+    },
+
 ]
 
 # ── AML/CFT Country Risk Ratings ───────────────────────────────────
@@ -1223,7 +1277,7 @@ def _generate_aml_indicators():
             "params": {"country": c, "list_type": "grey"},
             "description": f"FATF灰名单（加强监控司法管辖区）·{c}·Wikipedia FATF黑名单页面·每次FATF全会后更新",
             "frequency": "event",
-            "tags": "AML风险,全球宏观,金融合规",
+            "tags": "AML风险,金融合规",
         })
 
     # FATF Black List — per country
@@ -1235,7 +1289,7 @@ def _generate_aml_indicators():
             "params": {"country": c, "list_type": "black"},
             "description": f"FATF黑名单（呼吁采取行动的高风险司法管辖区）·{c}·Wikipedia FATF黑名单页面·每次FATF全会后更新",
             "frequency": "event",
-            "tags": "AML风险,全球宏观,金融合规",
+            "tags": "AML风险,金融合规",
         })
 
     # FATF aggregates
@@ -1244,14 +1298,14 @@ def _generate_aml_indicators():
         "method": "fatf_grey_list_count", "params": {},
         "description": "FATF灰名单（加强监控）国家数量·Wikipedia FATF黑名单页面·每次FATF全会后更新",
         "frequency": "event",
-        "tags": "AML风险,全球宏观,金融合规",
+        "tags": "AML风险,金融合规",
     })
     entries.append({
         "source": "aml", "name": "FATF Black List Count",
         "method": "fatf_black_list_count", "params": {},
         "description": "FATF黑名单（呼吁采取行动）国家数量·Wikipedia FATF黑名单页面·每次FATF全会后更新",
         "frequency": "event",
-        "tags": "AML风险,全球宏观,金融合规",
+        "tags": "AML风险,金融合规",
     })
 
     # INCSR — per country (all 81 jurisdictions)
@@ -1282,7 +1336,7 @@ def _generate_aml_indicators():
             "params": {"country": c},
             "description": f"美国国务院INCSR Vol.II主要洗钱关注国·{c}·年度更新·每年3月发布",
             "frequency": "annual",
-            "tags": "AML风险,全球宏观,金融合规",
+            "tags": "AML风险,金融合规",
         })
 
     # INCSR aggregate
@@ -1291,7 +1345,7 @@ def _generate_aml_indicators():
         "method": "incsr_listed_count", "params": {},
         "description": "美国国务院INCSR Vol.II列为洗钱主要关注国的司法管辖区数量·年度更新·每年3月发布",
         "frequency": "annual",
-        "tags": "AML风险,全球宏观,金融合规",
+        "tags": "AML风险,金融合规",
     })
 
     # Basel AML Index — per country (G20 + top/bottom risk extremes)
@@ -1331,7 +1385,7 @@ def _generate_aml_indicators():
             "params": {"country": c},
             "description": f"巴塞尔AML指数·{c}·综合评分0-10·177国排名·年度更新·每年12月发布",
             "frequency": "annual",
-            "tags": "AML风险,全球宏观,金融合规",
+            "tags": "AML风险,金融合规",
         })
 
     # Basel aggregates
@@ -1340,14 +1394,14 @@ def _generate_aml_indicators():
         "method": "basel_top_risks", "params": {"n": 10},
         "description": "巴塞尔AML指数风险最高的10个国家·年度更新",
         "frequency": "annual",
-        "tags": "AML风险,全球宏观,金融合规",
+        "tags": "AML风险,金融合规",
     })
     entries.append({
         "source": "aml", "name": "Basel AML Index Bottom 10 Risks",
         "method": "basel_lowest_risks", "params": {"n": 10},
         "description": "巴塞尔AML指数风险最低的10个国家·年度更新",
         "frequency": "annual",
-        "tags": "AML风险,全球宏观,金融合规",
+        "tags": "AML风险,金融合规",
     })
 
     return entries
@@ -1398,7 +1452,7 @@ def _generate_sanctions_indicators():
             "params": {"country": c},
             "description": f"OFAC SDN制裁·{c}·按国家聚合被制裁实体/个人/船舶/飞行器数量·每日更新·美国财政部OFAC",
             "frequency": "daily",
-            "tags": "AML风险,全球宏观,金融合规,制裁",
+            "tags": "AML风险,金融合规,制裁",
         })
 
     # OFAC total counts
@@ -1407,7 +1461,7 @@ def _generate_sanctions_indicators():
         "method": "ofac_total_counts", "params": {},
         "description": "OFAC SDN制裁总计·实体+个人+船舶+飞行器总数量及制裁计划数·每日更新·美国财政部OFAC",
         "frequency": "daily",
-        "tags": "AML风险,全球宏观,金融合规,制裁",
+        "tags": "AML风险,金融合规,制裁",
     })
 
     # OFAC sanctions by country (all countries aggregate)
@@ -1416,7 +1470,7 @@ def _generate_sanctions_indicators():
         "method": "ofac_sanctions_by_country", "params": {},
         "description": "OFAC SDN制裁按国家聚合·所有国家被制裁实体/个人/船舶/飞行器分布·每日更新·美国财政部OFAC",
         "frequency": "daily",
-        "tags": "AML风险,全球宏观,金融合规,制裁",
+        "tags": "AML风险,金融合规,制裁",
     })
 
     # CPI — per country scores
@@ -1455,7 +1509,7 @@ def _generate_sanctions_indicators():
             "params": {"country": c},
             "description": f"透明国际腐败感知指数·{c}·0-100评分·180国排名·年度更新·Transparency International CPI",
             "frequency": "annual",
-            "tags": "AML风险,全球宏观,金融合规,腐败",
+            "tags": "AML风险,金融合规,腐败",
         })
 
     # CPI aggregates
@@ -1464,14 +1518,14 @@ def _generate_sanctions_indicators():
         "method": "cpi_top_risks", "params": {"n": 10},
         "description": "透明国际腐败感知指数·最腐败10国·0-100最低分·年度更新·Transparency International CPI",
         "frequency": "annual",
-        "tags": "AML风险,全球宏观,金融合规,腐败",
+        "tags": "AML风险,金融合规,腐败",
     })
     entries.append({
         "source": "sanctions", "name": "TI CPI Top 10 Least Corrupt",
         "method": "cpi_cleanest", "params": {"n": 10},
         "description": "透明国际腐败感知指数·最清廉10国·0-100最高分·年度更新·Transparency International CPI",
         "frequency": "annual",
-        "tags": "AML风险,全球宏观,金融合规,腐败",
+        "tags": "AML风险,金融合规,腐败",
     })
 
     return entries

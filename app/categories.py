@@ -41,6 +41,7 @@ SOURCE_CATEGORY: Dict[str, DataCategory] = {
     "energy":   DataCategory.MACRO,
     "ai":       DataCategory.MACRO,
     "ai_co":    DataCategory.MACRO,
+    "cb":       DataCategory.MACRO,
     # Country risk ratings (time-series in indicators table)
     "aml":      DataCategory.COUNTRY_RISK,
     "sanctions": DataCategory.COUNTRY_RISK,

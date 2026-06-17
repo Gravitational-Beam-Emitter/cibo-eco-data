@@ -31,8 +31,8 @@ from app.pipeline import run_once
 
 app = FastAPI(
     title="Eco Data API",
-    description="Unified economic intelligence — three data categories: **Macroeconomic** (21 sources: FRED, AKShare, World Bank, BoJ, EIA, etc.), **Country Risk Ratings** (FATF/INCSR/Basel AML, OFAC Sanctions, TI CPI), **Name Screening** (OpenSanctions 383K entities, Chinese+English fuzzy matching).",
-    version="1.4.0",
+    description="Unified economic intelligence — three data categories: **Macroeconomic** (22 sources: FRED, AKShare, World Bank, BoJ, EIA, A-share concept boards, etc.), **Country Risk Ratings** (FATF/INCSR/Basel AML, OFAC Sanctions, TI CPI), **Name Screening** (OpenSanctions 383K entities, Chinese+English fuzzy matching).",
+    version="1.5.0",
 )
 
 # ── Startup ──────────────────────────────────────────────────
