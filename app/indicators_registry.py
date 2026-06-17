@@ -1202,6 +1202,283 @@ INDICATORS = [
 
 ]
 
+# ── AML/CFT Country Risk Ratings ───────────────────────────────────
+
+def _generate_aml_indicators():
+    """Generate indicator entries for FATF, INCSR, and Basel AML data sources."""
+    entries = []
+
+    # FATF Grey List — per country
+    _fatf_grey = [
+        "Algeria", "Angola", "Bolivia", "Bulgaria", "Cameroon",
+        "Ivory Coast", "Democratic Republic of the Congo", "Haiti", "Kenya",
+        "Kuwait", "Laos", "Lebanon", "Monaco", "Namibia", "Nepal",
+        "Papua New Guinea", "Senegal", "South Sudan", "Syria", "Venezuela",
+        "Vietnam", "British Virgin Islands", "Yemen",
+    ]
+    for c in _fatf_grey:
+        entries.append({
+            "source": "aml", "name": f"FATF Grey List — {c}",
+            "method": "fatf_country_status",
+            "params": {"country": c, "list_type": "grey"},
+            "description": f"FATF灰名单（加强监控司法管辖区）·{c}·Wikipedia FATF黑名单页面·每次FATF全会后更新",
+            "frequency": "event",
+            "tags": "AML风险,全球宏观,金融合规",
+        })
+
+    # FATF Black List — per country
+    _fatf_black = ["Iran", "North Korea", "Myanmar"]
+    for c in _fatf_black:
+        entries.append({
+            "source": "aml", "name": f"FATF Black List — {c}",
+            "method": "fatf_country_status",
+            "params": {"country": c, "list_type": "black"},
+            "description": f"FATF黑名单（呼吁采取行动的高风险司法管辖区）·{c}·Wikipedia FATF黑名单页面·每次FATF全会后更新",
+            "frequency": "event",
+            "tags": "AML风险,全球宏观,金融合规",
+        })
+
+    # FATF aggregates
+    entries.append({
+        "source": "aml", "name": "FATF Grey List Count",
+        "method": "fatf_grey_list_count", "params": {},
+        "description": "FATF灰名单（加强监控）国家数量·Wikipedia FATF黑名单页面·每次FATF全会后更新",
+        "frequency": "event",
+        "tags": "AML风险,全球宏观,金融合规",
+    })
+    entries.append({
+        "source": "aml", "name": "FATF Black List Count",
+        "method": "fatf_black_list_count", "params": {},
+        "description": "FATF黑名单（呼吁采取行动）国家数量·Wikipedia FATF黑名单页面·每次FATF全会后更新",
+        "frequency": "event",
+        "tags": "AML风险,全球宏观,金融合规",
+    })
+
+    # INCSR — per country (all 81 jurisdictions)
+    _incsr = [
+        "Afghanistan", "Albania", "Algeria", "Antigua and Barbuda", "Argentina",
+        "Aruba", "Bahamas", "Barbados", "Belgium", "Belize",
+        "Bolivia", "Brazil", "British Virgin Islands", "Burma", "Cabo Verde",
+        "Cambodia", "Canada", "Cayman Islands", "China", "Colombia",
+        "Costa Rica", "Curaçao", "Cyprus", "Dominica", "Dominican Republic",
+        "Ecuador", "El Salvador", "Germany", "Ghana", "Guatemala",
+        "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hong Kong",
+        "India", "Indonesia", "Iran", "Iraq", "Italy",
+        "Jamaica", "Kazakhstan", "Kenya", "Kyrgyzstan", "Laos",
+        "Liberia", "Macau", "Malaysia", "Mexico", "Mozambique",
+        "Netherlands", "Nicaragua", "Nigeria", "Pakistan", "Panama",
+        "Paraguay", "Peru", "Philippines", "Saint Kitts and Nevis",
+        "Saint Lucia", "Saint Vincent and the Grenadines", "Senegal",
+        "Sint Maarten", "South Africa", "Spain", "Suriname", "Syria",
+        "Taiwan", "Tajikistan", "Tanzania", "Thailand",
+        "Trinidad and Tobago", "Türkiye", "Turkmenistan", "Ukraine",
+        "United Arab Emirates", "United Kingdom", "United States",
+        "Uzbekistan", "Venezuela", "Vietnam",
+    ]
+    for c in _incsr:
+        entries.append({
+            "source": "aml", "name": f"INCSR Major ML Country — {c}",
+            "method": "incsr_country_status",
+            "params": {"country": c},
+            "description": f"美国国务院INCSR Vol.II主要洗钱关注国·{c}·年度更新·每年3月发布",
+            "frequency": "annual",
+            "tags": "AML风险,全球宏观,金融合规",
+        })
+
+    # INCSR aggregate
+    entries.append({
+        "source": "aml", "name": "INCSR Major ML Countries Count",
+        "method": "incsr_listed_count", "params": {},
+        "description": "美国国务院INCSR Vol.II列为洗钱主要关注国的司法管辖区数量·年度更新·每年3月发布",
+        "frequency": "annual",
+        "tags": "AML风险,全球宏观,金融合规",
+    })
+
+    # Basel AML Index — per country (G20 + top/bottom risk extremes)
+    _basel = [
+        # G20
+        "Argentina", "Australia", "Brazil", "Canada", "China", "France",
+        "Germany", "India", "Indonesia", "Italy", "Japan", "Mexico",
+        "Netherlands", "Russia", "Saudi Arabia", "South Africa",
+        "South Korea", "Türkiye", "United Kingdom", "United States",
+        # Top 15 highest risk
+        "Myanmar", "Haiti", "Democratic Republic of the Congo", "Chad",
+        "Equatorial Guinea", "Guinea-Bissau", "Mozambique", "Cambodia",
+        "Madagascar", "Mali", "Niger", "Sudan", "Nicaragua", "Ukraine",
+        "Nigeria",
+        # Bottom 15 lowest risk
+        "Finland", "Iceland", "San Marino", "Denmark", "Estonia",
+        "Sweden", "Norway", "Andorra", "New Zealand", "Singapore",
+        "Liechtenstein", "Israel", "Ireland", "Luxembourg", "Slovenia",
+        # Other major financial centers / monitored jurisdictions
+        "Hong Kong", "Switzerland", "Panama", "Cayman Islands",
+        "United Arab Emirates", "Malta", "Cyprus",
+        # FATF-listed countries (cross-reference)
+        "Iran", "North Korea", "Algeria", "Angola", "Bolivia",
+        "Bulgaria", "Cameroon", "Ivory Coast", "Kenya", "Kuwait",
+        "Laos", "Lebanon", "Monaco", "Namibia", "Nepal",
+        "Papua New Guinea", "Senegal", "South Sudan", "Syria",
+        "Venezuela", "Vietnam", "British Virgin Islands", "Yemen",
+    ]
+    seen = set()
+    for c in _basel:
+        if c in seen:
+            continue
+        seen.add(c)
+        entries.append({
+            "source": "aml", "name": f"Basel AML Index — {c}",
+            "method": "basel_country_score",
+            "params": {"country": c},
+            "description": f"巴塞尔AML指数·{c}·综合评分0-10·177国排名·年度更新·每年12月发布",
+            "frequency": "annual",
+            "tags": "AML风险,全球宏观,金融合规",
+        })
+
+    # Basel aggregates
+    entries.append({
+        "source": "aml", "name": "Basel AML Index Top 10 Risks",
+        "method": "basel_top_risks", "params": {"n": 10},
+        "description": "巴塞尔AML指数风险最高的10个国家·年度更新",
+        "frequency": "annual",
+        "tags": "AML风险,全球宏观,金融合规",
+    })
+    entries.append({
+        "source": "aml", "name": "Basel AML Index Bottom 10 Risks",
+        "method": "basel_lowest_risks", "params": {"n": 10},
+        "description": "巴塞尔AML指数风险最低的10个国家·年度更新",
+        "frequency": "annual",
+        "tags": "AML风险,全球宏观,金融合规",
+    })
+
+    return entries
+
+
+INDICATORS.extend(_generate_aml_indicators())
+
+
+# ── Sanctions & Corruption (OFAC + TI CPI) ────────────────────────
+
+def _generate_sanctions_indicators():
+    """Generate indicator entries for OFAC SDN sanctions and TI CPI data sources."""
+    entries = []
+
+    # OFAC — per country sanctions counts (G20 + FATF-listed + major financial centers)
+    _ofac_countries = [
+        # G20
+        "Argentina", "Australia", "Brazil", "Canada", "China", "France",
+        "Germany", "India", "Indonesia", "Italy", "Japan", "Mexico",
+        "Netherlands", "Russia", "Saudi Arabia", "South Africa",
+        "South Korea", "Türkiye", "United Kingdom", "United States",
+        # FATF grey list
+        "Algeria", "Angola", "Bolivia", "Bulgaria", "Cameroon",
+        "Ivory Coast", "Democratic Republic of the Congo", "Haiti", "Kenya",
+        "Kuwait", "Laos", "Lebanon", "Monaco", "Namibia", "Nepal",
+        "Papua New Guinea", "Senegal", "South Sudan", "Syria", "Venezuela",
+        "Vietnam", "British Virgin Islands", "Yemen",
+        # FATF black list
+        "Iran", "North Korea", "Myanmar",
+        # Major financial centers / offshore
+        "Hong Kong", "Switzerland", "Singapore", "Panama", "Cayman Islands",
+        "United Arab Emirates", "Malta", "Cyprus", "Liechtenstein",
+        "Luxembourg", "Ireland", "Bahamas", "Bermuda", "Isle of Man",
+        "Jersey", "Guernsey", "Gibraltar",
+        # Other significant economies
+        "Spain", "Sweden", "Norway", "Denmark", "Finland", "Belgium",
+        "Austria", "Poland", "Czech Republic", "Greece", "Portugal",
+        "Israel", "Egypt", "Nigeria", "Pakistan", "Bangladesh",
+        "Philippines", "Thailand", "Malaysia", "Ukraine", "Belarus",
+        "Cuba", "Sudan", "Somalia", "Afghanistan", "Iraq", "Libya",
+        "Zimbabwe", "Uzbekistan", "Kazakhstan", "Azerbaijan",
+        "Taiwan", "Macau",
+    ]
+    for c in _ofac_countries:
+        entries.append({
+            "source": "sanctions", "name": f"OFAC Sanctions — {c}",
+            "method": "ofac_country_sanctions",
+            "params": {"country": c},
+            "description": f"OFAC SDN制裁·{c}·按国家聚合被制裁实体/个人/船舶/飞行器数量·每日更新·美国财政部OFAC",
+            "frequency": "daily",
+            "tags": "AML风险,全球宏观,金融合规,制裁",
+        })
+
+    # OFAC total counts
+    entries.append({
+        "source": "sanctions", "name": "OFAC SDN Total Sanctions",
+        "method": "ofac_total_counts", "params": {},
+        "description": "OFAC SDN制裁总计·实体+个人+船舶+飞行器总数量及制裁计划数·每日更新·美国财政部OFAC",
+        "frequency": "daily",
+        "tags": "AML风险,全球宏观,金融合规,制裁",
+    })
+
+    # OFAC sanctions by country (all countries aggregate)
+    entries.append({
+        "source": "sanctions", "name": "OFAC Sanctions by Country",
+        "method": "ofac_sanctions_by_country", "params": {},
+        "description": "OFAC SDN制裁按国家聚合·所有国家被制裁实体/个人/船舶/飞行器分布·每日更新·美国财政部OFAC",
+        "frequency": "daily",
+        "tags": "AML风险,全球宏观,金融合规,制裁",
+    })
+
+    # CPI — per country scores
+    _cpi_countries = [
+        # G20
+        "Argentina", "Australia", "Brazil", "Canada", "China", "France",
+        "Germany", "India", "Indonesia", "Italy", "Japan", "Mexico",
+        "Netherlands", "Russia", "Saudi Arabia", "South Africa",
+        "South Korea", "Türkiye", "United Kingdom", "United States",
+        # FATF listed
+        "Iran", "North Korea", "Myanmar", "Algeria", "Angola", "Bolivia",
+        "Bulgaria", "Cameroon", "Ivory Coast", "Kenya", "Kuwait",
+        "Laos", "Lebanon", "Monaco", "Namibia", "Nepal",
+        "Papua New Guinea", "Senegal", "South Sudan", "Syria",
+        "Venezuela", "Vietnam", "Haiti", "Yemen",
+        "Democratic Republic of the Congo",
+        # Financial centers
+        "Hong Kong", "Switzerland", "Singapore", "Panama", "Cayman Islands",
+        "United Arab Emirates", "Malta", "Cyprus", "Luxembourg",
+        "Ireland", "Liechtenstein",
+        # Other significant economies
+        "Spain", "Sweden", "Norway", "Denmark", "Finland", "Belgium",
+        "Austria", "Poland", "Czech Republic", "Greece", "Portugal",
+        "Israel", "Egypt", "Nigeria", "Pakistan", "Bangladesh",
+        "Philippines", "Thailand", "Malaysia", "Ukraine",
+        "Chile", "Colombia", "Peru", "Ecuador", "Uruguay",
+        "Morocco", "Tunisia", "Ghana", "Ethiopia", "Tanzania",
+        "New Zealand", "Iceland", "Estonia", "Latvia", "Lithuania",
+        "Slovakia", "Hungary", "Romania", "Croatia", "Slovenia",
+        "Taiwan",
+    ]
+    for c in _cpi_countries:
+        entries.append({
+            "source": "sanctions", "name": f"TI CPI Score — {c}",
+            "method": "cpi_country_score",
+            "params": {"country": c},
+            "description": f"透明国际腐败感知指数·{c}·0-100评分·180国排名·年度更新·Transparency International CPI",
+            "frequency": "annual",
+            "tags": "AML风险,全球宏观,金融合规,腐败",
+        })
+
+    # CPI aggregates
+    entries.append({
+        "source": "sanctions", "name": "TI CPI Top 10 Most Corrupt",
+        "method": "cpi_top_risks", "params": {"n": 10},
+        "description": "透明国际腐败感知指数·最腐败10国·0-100最低分·年度更新·Transparency International CPI",
+        "frequency": "annual",
+        "tags": "AML风险,全球宏观,金融合规,腐败",
+    })
+    entries.append({
+        "source": "sanctions", "name": "TI CPI Top 10 Least Corrupt",
+        "method": "cpi_cleanest", "params": {"n": 10},
+        "description": "透明国际腐败感知指数·最清廉10国·0-100最高分·年度更新·Transparency International CPI",
+        "frequency": "annual",
+        "tags": "AML风险,全球宏观,金融合规,腐败",
+    })
+
+    return entries
+
+
+INDICATORS.extend(_generate_sanctions_indicators())
+
 # Indicators that require API keys — skipped if key not configured
 _REQUIRES_FRED_KEY = {
     "us.gdp", "us.cpi", "us.core_cpi", "us.unemployment", "us.nonfarm", "us.fed_funds", "us.treasury_10y", "us.treasury_2y",

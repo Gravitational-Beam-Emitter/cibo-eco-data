@@ -115,18 +115,63 @@ curl "http://localhost:8000/api/v1/indicators?source=defi"
 # Polymarket 交易量、DEX TVL、RWA 规模...
 ```
 
+### 场景：我要做 AML/CFT 合规风险评估
+
+```bash
+# 列出所有风险指标（AML + 制裁 + CPI）
+curl "http://localhost:8000/api/v1/risk/indicators"
+
+# 只看 AML 评级
+curl "http://localhost:8000/api/v1/risk/indicators?source=aml"
+
+# 获取 FATF 黑/灰名单历史趋势
+curl "http://localhost:8000/api/v1/risk/data/{id}"
+
+# 获取 TI 腐败感知指数最新评分
+curl "http://localhost:8000/api/v1/risk/data/{id}/latest"
+```
+
+### 场景：我要筛查客户是否在制裁/PEP 名单中
+
+```bash
+# 中文名筛查
+curl -X POST "http://localhost:8000/api/v1/name-screening/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"习近平","include_news":false}'
+
+# 英文名筛查
+curl -X POST "http://localhost:8000/api/v1/name-screening/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Xi Jinping","include_news":false}'
+
+# 批量筛查
+curl -X POST "http://localhost:8000/api/v1/name-screening/batch" \
+  -H "Content-Type: application/json" \
+  -d '{"queries":["习近平","李克强","汪洋"]}'
+
+# 查看数据库统计
+curl "http://localhost:8000/api/v1/name-screening/stats"
+```
+
 ---
 
 ## 如果用 MCP（Claude Code 直接调）
 
-8 个工具，流程完全一样：
+12 个工具，流程完全一样：
 
 ```
-1. list_tags              → 28 个标签一览
-2. list_indicators?tag=XX → 按标签拿指标列表
-3. search_indicators?q=XX → 关键词搜
-4. query_data?id=XX       → 取时间序列
-5. get_latest?id=XX       → 取最新值
+# 数据浏览
+1. data_sources_by_category → 三层分类一览（宏观/风险/筛查）
+2. list_tags                → 28 个标签一览
+3. list_indicators?tag=XX   → 按标签拿指标列表
+4. search_indicators?q=XX   → 关键词搜
+5. query_data?id=XX         → 取时间序列
+6. get_latest?id=XX         → 取最新值
+
+# 风险合规
+7. list_risk_indicators     → 列出 AML/制裁/CPI 指标
+8. search_name?q=习近平     → 筛查制裁/PEP名单（中英文）
+9. name_screening_stats     → 筛查数据库统计
 ```
 
 ---
@@ -138,7 +183,10 @@ from eco_data_sdk import EcoDataClient
 
 client = EcoDataClient("http://localhost:8000")
 
-# 浏览
+# 分类浏览
+categories = client.list_categories()         # 三层分类概览
+
+# 宏观数据浏览
 tags = client.list_tags()                    # 28 个标签
 ai_indicators = client.query_by_tag("AI产业链")  # 39 个 AI 指标
 results = client.search("GDP")               # 关键词搜索
@@ -147,8 +195,19 @@ results = client.search("GDP")               # 关键词搜索
 data = client.query_data(261, start="2024-01-01")  # 时间序列
 latest = client.latest(261)                        # 最新值
 
+# 国家风险
+risk_indicators = client.list_risk_indicators()    # AML、制裁、CPI 指标
+risk_data = client.query_risk_data(id, start="2020-01-01")
+risk_latest = client.risk_latest(id)
+
+# 名称筛查
+result = client.screen_name("习近平")              # 单名称筛查
+batch = client.screen_name_batch(["习近平","特朗普"])  # 批量筛查
+stats = client.name_screening_stats()              # 数据库统计
+
 # 刷新
-client.fetch(source="cn")  # 更新中国数据
+client.fetch(source="cn")  # 更新中国宏观数据
+client.risk_fetch()        # 更新风险数据
 ```
 
 ---

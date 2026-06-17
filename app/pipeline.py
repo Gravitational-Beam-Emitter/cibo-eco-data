@@ -126,9 +126,10 @@ def _normalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Already has date/value columns
+    # Already has date/value columns (preserve notes if present)
     if set(df.columns) >= {"date", "value"}:
-        return _safe_date_value(df[["date", "value"]])
+        keep = ["date", "value"] + (["notes"] if "notes" in df.columns else [])
+        return _safe_date_value(df[keep])
 
     # World Bank returns wide-format DataFrames (countries as columns)
     if source == "global_":

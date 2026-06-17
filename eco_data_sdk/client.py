@@ -26,10 +26,11 @@ class EcoDataClient:
         resp.raise_for_status()
         return resp.json()
 
-    def _post(self, path: str, params: Optional[dict] = None) -> Any:
+    def _post(self, path: str, params: Optional[dict] = None, json: Optional[dict] = None) -> Any:
         resp = self._session.post(
             f"{self.base_url}{path}",
             params=params,
+            json=json,
             timeout=self.timeout,
         )
         resp.raise_for_status()
@@ -93,6 +94,68 @@ class EcoDataClient:
     def health(self) -> Dict[str, Any]:
         """Service health check."""
         return self._get("/api/v1/health")
+
+    # ── Categories ─────────────────────────────────────────
+
+    def list_categories(self) -> Dict[str, Any]:
+        """List the three data categories with source counts."""
+        return self._get("/api/v1/categories")
+
+    # ── Risk Ratings ────────────────────────────────────────
+
+    def list_risk_indicators(self, source: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List country risk indicators (AML ratings, sanctions, CPI)."""
+        params = {}
+        if source:
+            params["source"] = source
+        return self._get("/api/v1/risk/indicators", params)
+
+    def get_risk_indicator(self, indicator_id: int) -> Dict[str, Any]:
+        """Get metadata for a single risk indicator."""
+        return self._get(f"/api/v1/risk/indicators/{indicator_id}")
+
+    def query_risk_data(
+        self,
+        indicator_id: int,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """Query time-series data for a risk indicator."""
+        params: Dict[str, Any] = {"limit": limit}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        return self._get(f"/api/v1/risk/data/{indicator_id}", params)
+
+    def risk_latest(self, indicator_id: int) -> Dict[str, Any]:
+        """Get the most recent observation for a risk indicator."""
+        return self._get(f"/api/v1/risk/data/{indicator_id}/latest")
+
+    def risk_fetch(self) -> Dict[str, Any]:
+        """Refresh all country risk data sources."""
+        return self._post("/api/v1/risk/fetch")
+
+    # ── Name Screening ──────────────────────────────────────
+
+    def screen_name(self, query: str, include_news: bool = False) -> Dict[str, Any]:
+        """Comprehensive name screening — sanctions, PEP, negative news."""
+        return self._post("/api/v1/name-screening/search", json={
+            "query": query,
+            "include_news": include_news,
+        })
+
+    def screen_name_batch(self, queries: List[str], include_news: bool = False) -> Dict[str, Any]:
+        """Batch name screening — screen multiple names at once."""
+        return self._post("/api/v1/name-screening/batch", json={
+            "queries": queries,
+            "include_news": include_news,
+        })
+
+    def name_screening_stats(self) -> Dict[str, Any]:
+        """Get name screening database statistics."""
+        return self._get("/api/v1/name-screening/stats")
 
     def close(self) -> None:
         self._session.close()

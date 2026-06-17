@@ -26,6 +26,7 @@ Usage:
     df = eh.global.gdp('CHN')
 """
 
+from app.categories import DataCategory, get_category, sources_by_category
 from app.eco_harness.us import USHarness
 from app.eco_harness.cn import CNHarness
 from app.eco_harness.hk import HKHarness
@@ -46,6 +47,9 @@ from app.eco_harness.llm_metrics import LLMMetricsHarness
 from app.eco_harness.defi_metrics import DeFiMetricsHarness
 from app.eco_harness.ai_infra import AIInfraHarness
 from app.eco_harness.ai_companies import AICompaniesHarness
+from app.eco_harness.aml_ratings import AMLRatingsHarness
+from app.eco_harness.sanctions import SanctionsHarness
+from app.eco_harness.name_screening import NameScreeningHarness
 
 try:
     from app.eco_harness.sdmx import SDMXHarness
@@ -54,10 +58,38 @@ except ImportError:
     _HAS_SDMX = False
 
 
+class _CategoryView:
+    """Proxy that groups harness sub-sources under a category namespace.
+
+    e.g. eh.macro.us.gdp() or eh.risk.aml.list_ratings()
+    """
+
+    __slots__ = ('_harness', '_source_keys')
+
+    def __init__(self, harness: 'EcoHarness', source_keys: list[str]):
+        self._harness = harness
+        self._source_keys = source_keys
+
+    def __getattr__(self, name: str):
+        if name in self._source_keys:
+            attr = "global_" if name == "global_" else name
+            if attr == "sdmx":
+                return self._harness.sdmx
+            return getattr(self._harness, attr)
+        raise AttributeError(f"{name} not in this category (available: {self._source_keys})")
+
+    def __dir__(self):
+        return self._source_keys
+
+    def __repr__(self):
+        return f"CategoryView({self._source_keys})"
+
+
 class EcoHarness:
     __slots__ = ('us', 'cn', 'hk', 'bond', 'futures', 'global_', 'sdmx',
                  'jp', 'euro', 'uk', 'de', 'au', 'ca', 'ch', 'shipping',
-                 'banks', 'alt', 'llm', 'defi', 'energy', 'ai', 'ai_co')
+                 'banks', 'alt', 'llm', 'defi', 'energy', 'ai', 'ai_co', 'aml', 'sanctions', 'name_screening',
+                 '_macro_view', '_risk_view')
 
     def __init__(self, fred_api_key: str = '', eia_api_key: str = ''):
         self.us = USHarness(fred_api_key)
@@ -82,15 +114,38 @@ class EcoHarness:
         self.energy = EnergyHarness(eia_api_key)
         self.ai = AIInfraHarness(fred_api_key)
         self.ai_co = AICompaniesHarness()
+        self.aml = AMLRatingsHarness()
+        self.sanctions = SanctionsHarness()
+        self.name_screening = NameScreeningHarness()
+
+        # Category views
+        macro_keys = sources_by_category(DataCategory.MACRO)
+        if _HAS_SDMX:
+            macro_keys.append("sdmx")
+        risk_keys = sources_by_category(DataCategory.COUNTRY_RISK) + ["name_screening"]
+        self._macro_view = _CategoryView(self, macro_keys)
+        self._risk_view = _CategoryView(self, risk_keys)
+
+    @property
+    def macro(self) -> _CategoryView:
+        """Macroeconomic sources (us, cn, hk, jp, euro, ...) grouped under one namespace."""
+        return self._macro_view
+
+    @property
+    def risk(self) -> _CategoryView:
+        """Country risk + name screening sources (aml, sanctions, name_screening)."""
+        return self._risk_view
 
     @property
     def available_sources(self):
         sources = ['us', 'cn', 'hk', 'global_', 'jp', 'euro', 'uk', 'de',
-                   'au', 'ca', 'ch', 'shipping', 'banks', 'alt', 'llm', 'defi', 'energy', 'ai', 'ai_co']
+                   'au', 'ca', 'ch', 'shipping', 'banks', 'alt', 'llm', 'defi', 'energy', 'ai', 'ai_co', 'aml', 'sanctions', 'name_screening']
         if _HAS_SDMX:
             sources.append('sdmx')
-        return sources
+        return [{"key": s, "category": get_category(s).value} for s in sources]
 
     def __repr__(self):
-        status = 'sdmx' if _HAS_SDMX else 'no-sdmx'
-        return f'EcoHarness(us/cn/hk/global_/euro/uk/de/jp/au/ca/ch/shipping/banks/{status}/energy)'
+        n_macro = len(sources_by_category(DataCategory.MACRO))
+        n_risk = len(sources_by_category(DataCategory.COUNTRY_RISK))
+        status = '+sdmx' if _HAS_SDMX else ''
+        return f'EcoHarness(macro×{n_macro}{status}, country_risk×{n_risk}, name_screening)'
