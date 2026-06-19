@@ -150,8 +150,10 @@ def list_actions(
             params.append(ticker.upper())
 
         sql = f"""
-            SELECT filing_date, ticker, company_name, action_type,
-                   action_subtype, item_numbers, description, source_url
+            SELECT filing_date, cik, ticker, company_name, form_type,
+                   action_type, action_subtype, item_numbers,
+                   effective_date, record_date, pay_date,
+                   description, source_url, fetched_at
             FROM corporate_actions
             WHERE {' AND '.join(where)}
             ORDER BY filing_date DESC, action_type

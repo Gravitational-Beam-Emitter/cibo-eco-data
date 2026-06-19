@@ -82,9 +82,13 @@ ITEM_ACTION_MAP: Dict[str, Tuple[str, str]] = {
 
 # Items that indicate dividends (subset of 8.01 with dividend keywords)
 DIVIDEND_KEYWORDS = [
-    r"dividend", r"distribution", r"dividend\s+declaration",
-    r"declared\s+a\s+(quarterly|special|cash)\s+dividend",
-    r"record\s+date.*dividend", r"payable.*dividend",
+    r"declared\s+(a\s+)?(quarterly|special|cash|semi-annual|monthly|annual)\s+dividend",
+    r"dividend\s+(declaration|declared|payable|record|of\s+\$)",
+    r"record\s+date.*dividend",
+    r"payable.*dividend",
+    r"ex-dividend\s+date",
+    r"will\s+(pay|distribute)\s+(a\s+)?(quarterly|special|cash)\s+dividend",
+    r"announced\s+(a\s+)?(quarterly|special|cash)\s+dividend",
 ]
 
 # Items that indicate stock splits
@@ -441,17 +445,18 @@ def fetch_filings_by_date(date_str: str) -> List[Dict[str, Any]]:
 
 def fetch_filing_items(cik: str, accession_number: str,
                        file_path: str = "",
-                       session: Optional[requests.Session] = None) -> Tuple[List[str], str]:
+                       session: Optional[requests.Session] = None) -> Tuple[List[str], str, Any]:
     """Extract 8-K item numbers and description text from a specific filing.
 
     Returns:
-        (list of item strings, plain-text description from the 8-K document)
+        (list of item strings, plain-text description, index page BeautifulSoup or None)
     """
     items: List[str] = []
     doc_text = ""
+    index_soup = None
 
     if not accession_number:
-        return items, doc_text
+        return items, doc_text, index_soup
 
     acc_no = accession_number.replace("-", "")
 
@@ -478,9 +483,10 @@ def fetch_filing_items(cik: str, accession_number: str,
         resp = fetcher.get(index_url, headers=SEC_HEADERS, timeout=8)
         if resp.status_code != 200:
             logger.debug(f"Index page not accessible: {resp.status_code}")
-            return items, doc_text
+            return items, doc_text, index_soup
 
         soup = BeautifulSoup(resp.text, "lxml")
+        index_soup = soup
 
         # Step 2: Find the primary 8-K document link
         # Common patterns: form8-k.htm, *_8k-ixbrl.htm, *_8k.htm, etc.
@@ -532,11 +538,11 @@ def fetch_filing_items(cik: str, accession_number: str,
             items = _parse_items_from_filing_document(resp_doc.text)
             # Extract description text from the 8-K document body
             try:
-                doc_text = BeautifulSoup(resp_doc.text, "lxml").get_text(" ", strip=True)[:2000]
+                doc_text = BeautifulSoup(resp_doc.text, "lxml").get_text(" ", strip=True)[:4000]
             except Exception:
                 pass
             if items:
-                return items, doc_text
+                return items, doc_text, index_soup
 
         # Step 4: Try XBRL XML version (more structured) as fallback
         if not items and xml_url:
@@ -545,14 +551,54 @@ def fetch_filing_items(cik: str, accession_number: str,
                 items = _parse_items_from_filing_document(resp_xml.text)
                 if not doc_text:
                     try:
-                        doc_text = BeautifulSoup(resp_xml.text, "lxml").get_text(" ", strip=True)[:2000]
+                        doc_text = BeautifulSoup(resp_xml.text, "lxml").get_text(" ", strip=True)[:4000]
                     except Exception:
                         pass
 
     except Exception as e:
         logger.debug(f"Failed to extract items for CIK {cik}: {e}")
 
-    return items, doc_text
+    return items, doc_text, index_soup
+
+
+def _fetch_exhibit_texts(
+    cik: str, accession_number: str, base_url: str,
+    soup: BeautifulSoup, session: requests.Session,
+) -> str:
+    """Fetch EX-99 exhibit texts from the filing index page.
+
+    Exhibits (press releases) often contain the actual effective/record/pay dates
+    for dividends, stock splits, mergers, and buybacks.
+    """
+    exhibit_texts = []
+    try:
+        for a in soup.find_all("a"):
+            href = a.get("href", "")
+            link_text = a.get_text(strip=True).lower()
+            if any(pat in link_text for pat in ["ex99", "ex-99", "ex-99.", "ex99.", "exhibit99", "exhibit 99"]):
+                if ".htm" not in link_text and ".txt" not in link_text:
+                    continue
+                if href.startswith("/ix?doc="):
+                    ex_url = "https://www.sec.gov" + href.split("?doc=")[-1]
+                elif href.startswith("/"):
+                    ex_url = f"https://www.sec.gov{href}"
+                elif href.startswith("http"):
+                    ex_url = href
+                else:
+                    ex_url = f"{base_url}/{href}"
+                try:
+                    resp = session.get(ex_url, headers=SEC_HEADERS, timeout=5)
+                    if resp.status_code == 200:
+                        et = BeautifulSoup(resp.text, "lxml").get_text(" ", strip=True)
+                        if et:
+                            exhibit_texts.append(et)
+                except Exception:
+                    pass
+                if len(exhibit_texts) >= 3:  # Limit to 3 exhibits
+                    break
+    except Exception:
+        pass
+    return " | ".join(exhibit_texts)
 
 
 def classify_and_prepare(
@@ -611,16 +657,17 @@ def classify_and_prepare(
 
         # Get items
         items: List[str] = f.get("items", [])
-        description = f.get("summary", "")[:2000]
+        description = f.get("summary", "")[:3000]
 
         # If items not pre-extracted and fetch_items is enabled, get from SEC
+        index_soup = None
         if not items and fetch_items:
             accession = f.get("accession_number", "")
             if accession:
                 time.sleep(SEC_RATE_LIMIT)
                 file_path = f.get("file_path", "")
                 try:
-                    items, fetched_text = fetch_filing_items(cik, accession, file_path, session)
+                    items, fetched_text, index_soup = fetch_filing_items(cik, accession, file_path, session)
                     if fetched_text and not description:
                         description = fetched_text
                 except Exception:
@@ -634,8 +681,44 @@ def classify_and_prepare(
         action_type, action_subtype = _classify_items(items, description)
         item_numbers = ",".join(items) if items else ""
 
-        # Extract dates from description
+        # For types where dates are critical, fetch exhibit text (press releases)
+        DATE_CRITICAL_TYPES = {"dividend", "stock_split", "merger_acquisition", "buyback"}
+        if fetch_items and action_type in DATE_CRITICAL_TYPES:
+            accession = f.get("accession_number", "")
+            if accession:
+                # Always fetch index page for exhibits, even if items were pre-extracted
+                if not index_soup:
+                    time.sleep(SEC_RATE_LIMIT)
+                    file_path = f.get("file_path", "")
+                    try:
+                        _, fetched_text, index_soup = fetch_filing_items(cik, accession, file_path, session)
+                        if fetched_text and not description:
+                            description = fetched_text
+                    except Exception:
+                        pass
+                if index_soup:
+                    acc_no = accession.replace("-", "")
+                    file_path_val = f.get("file_path", "")
+                    if file_path_val:
+                        parts = file_path_val.split("/")
+                        cik_dir = parts[2] if len(parts) >= 3 else str(int(cik))
+                    else:
+                        cik_dir = str(int(cik))
+                    base_url = f"https://www.sec.gov/Archives/edgar/data/{cik_dir}/{acc_no}"
+                    try:
+                        exhibit_text = _fetch_exhibit_texts(cik, accession, base_url, index_soup, session)
+                        if exhibit_text:
+                            description = description + " | EXHIBITS: " + exhibit_text[:3000]
+                    except Exception:
+                        pass
+
+        # Extract dates from description (possibly enhanced with exhibit text)
         dates = _extract_dates(description)
+
+        # Fallback: use filing_date as effective_date for most action types
+        # (dividends and stock splits need exhibit-level dates, don't use filing_date)
+        if not dates.get("effective_date") and action_type not in ("dividend", "stock_split"):
+            dates["effective_date"] = filing_date
 
         # Build source URL
         source_url = f.get("link", "")
@@ -652,7 +735,7 @@ def classify_and_prepare(
             "effective_date": dates.get("effective_date"),
             "record_date": dates.get("record_date"),
             "pay_date": dates.get("pay_date"),
-            "description": description[:1000],
+            "description": description[:5000],
             "source_url": source_url,
         })
 
@@ -669,6 +752,27 @@ def _items_from_text(text: str) -> List[str]:
         return []
     items = re.findall(r"Item\s*(\d+\.\d+)", text, re.IGNORECASE)
     return list(dict.fromkeys(items))
+
+
+def _validate_date(date_str: str) -> Optional[str]:
+    """Validate a YYYY-MM-DD date string, return None if invalid."""
+    try:
+        parts = date_str.split("-")
+        if len(parts) != 3:
+            return None
+        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        # Year: SEC data starts ~1994, allow 2000-2100 for safety
+        if year < 2000 or year > 2100:
+            return None
+        if month < 1 or month > 12:
+            return None
+        if day < 1 or day > 31:
+            return None
+        # Validate with datetime
+        datetime(year, month, day)
+        return date_str
+    except (ValueError, TypeError):
+        return None
 
 
 def _extract_dates(text: str) -> Dict[str, Optional[str]]:
@@ -691,50 +795,72 @@ def _extract_dates(text: str) -> Dict[str, Optional[str]]:
     us_pat = r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2}),?\s*(\d{4})"
 
     def _first_date(pattern, context_words):
-        """Find first date match near a context word."""
+        """Find first date match near a context word (searches both before and after)."""
         for word in context_words:
             idx = text_lower.find(word)
             if idx >= 0:
-                # Search within 300 chars after the context word
-                snippet = text[idx:idx + 300]
-                m = re.search(pattern, snippet, re.IGNORECASE)
+                # Search within 500 chars after the context word
+                snippet_after = text[idx:idx + 500]
+                m = re.search(pattern, snippet_after, re.IGNORECASE)
+                if m:
+                    return _normalize_date(m)
+                # Also search 200 chars before the context word
+                start_before = max(0, idx - 200)
+                snippet_before = text[start_before:idx + len(word)]
+                m = re.search(pattern, snippet_before, re.IGNORECASE)
                 if m:
                     return _normalize_date(m)
         return None
 
     def _normalize_date(m):
-        if m.lastindex and m.lastindex >= 3:
+        """Normalize a regex match into YYYY-MM-DD, validating the date."""
+        result = None
+        if m.lastindex and m.lastindex >= 4:
             # US format: month name + day + year
-            month_str, day, year = m.group(1), m.group(2), m.group(3)
+            month_str, day, year = m.group(2), m.group(3), m.group(4)
+            if not month_str:
+                return None
+            month_lower = month_str.lower()
             months = {"jan": "01", "feb": "02", "mar": "03", "apr": "04",
                       "may": "05", "jun": "06", "jul": "07", "aug": "08",
                       "sep": "09", "oct": "10", "nov": "11", "dec": "12"}
             for prefix, num in months.items():
-                if month_str.lower().startswith(prefix):
-                    return f"{year}-{num}-{int(day):02d}"
+                if month_lower.startswith(prefix):
+                    result = f"{year}-{num}-{int(day):02d}"
+                    break
         else:
             # ISO format
-            return m.group(1)
+            result = m.group(1)
+        if result:
+            return _validate_date(result)
         return None
 
     # Effective date
     result["effective_date"] = _first_date(
         iso_pat + "|" + us_pat,
-        ["effective", "as of", "commenced on", "entry into", "entered into"],
+        ["effective", "as of", "commenced on", "entry into", "entered into",
+         "press release dated", "announced", "declared", "approved", "renewed",
+         "closing date", "closing of", "effective date", "effective as of",
+         "agreement dated", "dated as of", "date of report"],
     )
 
     # Record date
     result["record_date"] = _first_date(
         iso_pat + "|" + us_pat,
         ["record date", "record_date", "holders of record", "shareholders of record",
-         "stockholders of record"],
+         "stockholders of record", "close of business on", "at the close of business",
+         "record holders", "determination date", "as of the close", "fixed on",
+         "set the record date", "established a record date"],
     )
 
     # Payment date
     result["pay_date"] = _first_date(
         iso_pat + "|" + us_pat,
         ["payable", "payment date", "pay_date", "paid on", "distribution date",
-         "dividend payable"],
+         "dividend payable", "will be paid", "to be paid", "payable date",
+         "distribution payable", "ex-dividend", "payment will be made",
+         "payable on or about", "shall be paid on", "will be distributed on",
+         "to be distributed on", "payout date", "payout"],
     )
 
     return result
