@@ -397,7 +397,8 @@ def fetch_filings_by_date(date_str: str) -> List[Dict[str, Any]]:
 
     # Parse the fixed-width index file
     # Format: FORM_TYPE  COMPANY_NAME  CIK  DATE_FILED  FILE_PATH
-    # Columns: 0-11=form, 12-73=company, 74-83=cik, 84-93=date, 94+=path
+    # Note: CIK from fixed-width columns can be truncated (e.g. 1341439 → 13414).
+    #       Extract CIK from file_path instead (edgar/data/{CIK}/ACCESSION.txt).
     lines = resp.text.strip().split("\n")
 
     for line in lines:
@@ -409,23 +410,30 @@ def fetch_filings_by_date(date_str: str) -> List[Dict[str, Any]]:
             continue
 
         company_name = line[12:74].strip()
-        cik = line[74:84].strip()
-        filing_date_raw = line[84:94].strip()
-
-        # Normalize CIK
-        try:
-            cik = str(int(cik))
-        except ValueError:
-            continue
 
         # Build accession number and URL from the file path
         file_path = line[94:].strip() if len(line) > 94 else ""
-        # File path format: edgar/data/CIK/ACCESSION.txt
         accession_number = ""
         if file_path:
             parts = file_path.split("/")
             if len(parts) >= 4:
                 accession_number = parts[-1].replace(".txt", "")
+
+        # Extract CIK from file_path (more reliable than fixed-width columns)
+        cik = ""
+        if file_path:
+            parts = file_path.split("/")
+            if len(parts) >= 3:
+                try:
+                    cik = str(int(parts[2]))
+                except ValueError:
+                    pass
+        # Fallback to fixed-width CIK if file_path not available
+        if not cik:
+            try:
+                cik = str(int(line[74:84].strip()))
+            except ValueError:
+                continue
 
         filings.append({
             "cik": cik,
@@ -668,7 +676,7 @@ def classify_and_prepare(
                 file_path = f.get("file_path", "")
                 try:
                     items, fetched_text, index_soup = fetch_filing_items(cik, accession, file_path, session)
-                    if fetched_text and not description:
+                    if fetched_text:
                         description = fetched_text
                 except Exception:
                     pass
@@ -692,7 +700,7 @@ def classify_and_prepare(
                     file_path = f.get("file_path", "")
                     try:
                         _, fetched_text, index_soup = fetch_filing_items(cik, accession, file_path, session)
-                        if fetched_text and not description:
+                        if fetched_text:
                             description = fetched_text
                     except Exception:
                         pass
