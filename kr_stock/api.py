@@ -57,12 +57,19 @@ from kr_stock.storage import (
     get_dart_filings,
     get_filing_by_rcept_no,
     get_fetch_status,
+    get_stock_metrics,
+    get_stock_financials,
+    get_analyst_data,
+    get_metrics_batch,
 )
 from kr_stock.pipeline import (
     fetch_daily,
     fetch_latest,
     fetch_dart_filings as pipeline_fetch_filings,
     init_pipeline,
+    fetch_stock_metrics as pipeline_fetch_metrics,
+    fetch_stock_financials as pipeline_fetch_financials,
+    fetch_analyst_data as pipeline_fetch_analyst,
 )
 
 logger = logging.getLogger("kr_stock.api")
@@ -180,6 +187,72 @@ def stock_detail(code: str):
         _serialize_records(mover_records)
         detail["recent_movers"] = mover_records
         return detail
+    finally:
+        conn.close()
+
+
+# ── Valuation Metrics ─────────────────────────────────────────
+
+@app.get("/api/v1/stock/{code}/metrics")
+def stock_metrics_endpoint(code: str):
+    """Latest valuation metrics (P/E, P/B, dividend yield, beta, growth, etc.) from yfinance."""
+    conn = init_db(read_only=True)
+    try:
+        metrics = get_stock_metrics(conn, code)
+        if metrics is None:
+            raise HTTPException(status_code=404, detail=f"No metrics for {code}")
+        return metrics
+    finally:
+        conn.close()
+
+
+@app.post("/api/v1/metrics/batch")
+def metrics_batch_endpoint(body: dict):
+    """Get latest metrics for multiple stocks.
+    Body: {"codes": ["005930", ...]}"""
+    codes = body.get("codes", [])
+    if not codes or not isinstance(codes, list):
+        raise HTTPException(status_code=422, detail="codes must be a non-empty list")
+    conn = init_db(read_only=True)
+    try:
+        metrics = get_metrics_batch(conn, codes)
+        return {"metrics": metrics}
+    finally:
+        conn.close()
+
+
+# ── Quarterly Financials ─────────────────────────────────────
+
+@app.get("/api/v1/stock/{code}/financials")
+def stock_financials_endpoint(
+    code: str,
+    type: Optional[str] = Query(None, description="Statement type: BS, IS, or CF"),
+):
+    """Quarterly financial statements (Balance Sheet, Income Statement, Cash Flow) from yfinance."""
+    conn = init_db(read_only=True)
+    try:
+        stmt_type = type.upper() if type else None
+        if stmt_type and stmt_type not in ("BS", "IS", "CF"):
+            raise HTTPException(status_code=422, detail="type must be BS, IS, or CF")
+        financials = get_stock_financials(conn, code, statement_type=stmt_type)
+        if not financials:
+            raise HTTPException(status_code=404, detail=f"No financials for {code}")
+        return {"code": code, "count": len(financials), "financials": financials}
+    finally:
+        conn.close()
+
+
+# ── Analyst Data ─────────────────────────────────────────────
+
+@app.get("/api/v1/stock/{code}/analyst")
+def stock_analyst_endpoint(code: str):
+    """Analyst consensus (price targets, recommendations, estimates) from yfinance."""
+    conn = init_db(read_only=True)
+    try:
+        analyst = get_analyst_data(conn, code)
+        if analyst is None:
+            raise HTTPException(status_code=404, detail=f"No analyst data for {code}")
+        return analyst
     finally:
         conn.close()
 

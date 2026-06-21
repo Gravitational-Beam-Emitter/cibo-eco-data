@@ -159,7 +159,77 @@ def init_db(db_path: Optional[str] = None, read_only: bool = False) -> duckdb.Du
         )
     """)
 
-    # 9. Fetch log
+    # 9. Valuation metrics (from yfinance.info)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kr_stock_metrics (
+            code VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            market_cap DOUBLE,
+            enterprise_value DOUBLE,
+            pe_trailing DOUBLE,
+            pe_forward DOUBLE,
+            pb_ratio DOUBLE,
+            ps_ratio DOUBLE,
+            dividend_yield DOUBLE,
+            payout_ratio DOUBLE,
+            beta DOUBLE,
+            roa DOUBLE,
+            roe DOUBLE,
+            gross_margin DOUBLE,
+            ebitda_margin DOUBLE,
+            operating_margin DOUBLE,
+            revenue_growth DOUBLE,
+            earnings_growth DOUBLE,
+            free_cashflow DOUBLE,
+            operating_cashflow DOUBLE,
+            inst_holding_pct DOUBLE,
+            insider_holding_pct DOUBLE,
+            shares_outstanding DOUBLE,
+            float_shares DOUBLE,
+            ma_50 DOUBLE,
+            ma_200 DOUBLE,
+            high_52w DOUBLE,
+            low_52w DOUBLE,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(code, date)
+        )
+    """)
+
+    # 10. Quarterly financials (EAV pattern: BS/IS/CF from yfinance)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kr_stock_financials (
+            code VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            statement_type VARCHAR NOT NULL,
+            metric_name VARCHAR NOT NULL,
+            value DOUBLE,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(code, date, statement_type, metric_name)
+        )
+    """)
+
+    # 11. Analyst consensus data (from yfinance)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kr_analyst_data (
+            code VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            target_mean DOUBLE,
+            target_high DOUBLE,
+            target_low DOUBLE,
+            target_median DOUBLE,
+            recommendation VARCHAR,
+            num_analysts INTEGER,
+            earnings_estimate_avg DOUBLE,
+            revenue_estimate_avg DOUBLE,
+            eps_trend_current DOUBLE,
+            eps_trend_7d_ago DOUBLE,
+            eps_trend_30d_ago DOUBLE,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(code, date)
+        )
+    """)
+
+    # 12. Fetch log
     conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_kr_fetch_log")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kr_fetch_log (
@@ -189,6 +259,11 @@ def init_db(db_path: Optional[str] = None, read_only: bool = False) -> duckdb.Du
     conn.execute("CREATE INDEX IF NOT EXISTS idx_kdf_date ON kr_dart_filings(receipt_date)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_kdf_corp ON kr_dart_filings(corp_name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_kff_date ON kr_foreign_flows(date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_km_code ON kr_stock_metrics(code)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_km_date ON kr_stock_metrics(date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kf_code ON kr_stock_financials(code)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kf_stmt ON kr_stock_financials(statement_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ka_code ON kr_analyst_data(code)")
 
     return conn
 
@@ -394,6 +469,128 @@ def upsert_foreign_flows(conn: duckdb.DuckDBPyConnection, df: pd.DataFrame) -> i
             individual_net_buy = excluded.individual_net_buy
     """).fetchall()
     conn.unregister("_tmp_kff")
+    return rows[0][0] if rows else 0
+
+
+def upsert_stock_metrics(conn: duckdb.DuckDBPyConnection, df: pd.DataFrame) -> int:
+    """Batch insert/update valuation metrics. Returns row count."""
+    if df.empty:
+        return 0
+    needed = ["code", "date", "market_cap", "enterprise_value", "pe_trailing", "pe_forward",
+              "pb_ratio", "ps_ratio", "dividend_yield", "payout_ratio", "beta",
+              "roa", "roe", "gross_margin", "ebitda_margin", "operating_margin",
+              "revenue_growth", "earnings_growth", "free_cashflow", "operating_cashflow",
+              "inst_holding_pct", "insider_holding_pct", "shares_outstanding", "float_shares",
+              "ma_50", "ma_200", "high_52w", "low_52w"]
+    for col in needed:
+        if col not in df.columns:
+            df[col] = None
+    sub = df[needed].copy()
+    conn.register("_tmp_km", sub)
+    rows = conn.execute("""
+        INSERT INTO kr_stock_metrics (code, date, market_cap, enterprise_value,
+            pe_trailing, pe_forward, pb_ratio, ps_ratio, dividend_yield, payout_ratio,
+            beta, roa, roe, gross_margin, ebitda_margin, operating_margin,
+            revenue_growth, earnings_growth, free_cashflow, operating_cashflow,
+            inst_holding_pct, insider_holding_pct, shares_outstanding, float_shares,
+            ma_50, ma_200, high_52w, low_52w)
+        SELECT code, date, market_cap, enterprise_value,
+            pe_trailing, pe_forward, pb_ratio, ps_ratio, dividend_yield, payout_ratio,
+            beta, roa, roe, gross_margin, ebitda_margin, operating_margin,
+            revenue_growth, earnings_growth, free_cashflow, operating_cashflow,
+            inst_holding_pct, insider_holding_pct, shares_outstanding, float_shares,
+            ma_50, ma_200, high_52w, low_52w
+        FROM _tmp_km
+        ON CONFLICT (code, date) DO UPDATE SET
+            market_cap = excluded.market_cap,
+            enterprise_value = excluded.enterprise_value,
+            pe_trailing = excluded.pe_trailing,
+            pe_forward = excluded.pe_forward,
+            pb_ratio = excluded.pb_ratio,
+            ps_ratio = excluded.ps_ratio,
+            dividend_yield = excluded.dividend_yield,
+            payout_ratio = excluded.payout_ratio,
+            beta = excluded.beta,
+            roa = excluded.roa,
+            roe = excluded.roe,
+            gross_margin = excluded.gross_margin,
+            ebitda_margin = excluded.ebitda_margin,
+            operating_margin = excluded.operating_margin,
+            revenue_growth = excluded.revenue_growth,
+            earnings_growth = excluded.earnings_growth,
+            free_cashflow = excluded.free_cashflow,
+            operating_cashflow = excluded.operating_cashflow,
+            inst_holding_pct = excluded.inst_holding_pct,
+            insider_holding_pct = excluded.insider_holding_pct,
+            shares_outstanding = excluded.shares_outstanding,
+            float_shares = excluded.float_shares,
+            ma_50 = excluded.ma_50,
+            ma_200 = excluded.ma_200,
+            high_52w = excluded.high_52w,
+            low_52w = excluded.low_52w,
+            updated_at = now()
+    """).fetchall()
+    conn.unregister("_tmp_km")
+    return rows[0][0] if rows else 0
+
+
+def upsert_stock_financials(conn: duckdb.DuckDBPyConnection, df: pd.DataFrame) -> int:
+    """Batch insert/update quarterly financials (EAV pattern). Returns row count."""
+    if df.empty:
+        return 0
+    needed = ["code", "date", "statement_type", "metric_name", "value"]
+    for col in needed:
+        if col not in df.columns:
+            df[col] = None
+    sub = df[needed].copy()
+    conn.register("_tmp_kf", sub)
+    rows = conn.execute("""
+        INSERT INTO kr_stock_financials (code, date, statement_type, metric_name, value)
+        SELECT code, date, statement_type, metric_name, value
+        FROM _tmp_kf
+        ON CONFLICT (code, date, statement_type, metric_name) DO UPDATE SET
+            value = excluded.value,
+            updated_at = now()
+    """).fetchall()
+    conn.unregister("_tmp_kf")
+    return rows[0][0] if rows else 0
+
+
+def upsert_analyst_data(conn: duckdb.DuckDBPyConnection, df: pd.DataFrame) -> int:
+    """Batch insert/update analyst consensus. Returns row count."""
+    if df.empty:
+        return 0
+    needed = ["code", "date", "target_mean", "target_high", "target_low", "target_median",
+              "recommendation", "num_analysts", "earnings_estimate_avg", "revenue_estimate_avg",
+              "eps_trend_current", "eps_trend_7d_ago", "eps_trend_30d_ago"]
+    for col in needed:
+        if col not in df.columns:
+            df[col] = None
+    sub = df[needed].copy()
+    conn.register("_tmp_ka", sub)
+    rows = conn.execute("""
+        INSERT INTO kr_analyst_data (code, date, target_mean, target_high, target_low,
+            target_median, recommendation, num_analysts, earnings_estimate_avg,
+            revenue_estimate_avg, eps_trend_current, eps_trend_7d_ago, eps_trend_30d_ago)
+        SELECT code, date, target_mean, target_high, target_low,
+            target_median, recommendation, num_analysts, earnings_estimate_avg,
+            revenue_estimate_avg, eps_trend_current, eps_trend_7d_ago, eps_trend_30d_ago
+        FROM _tmp_ka
+        ON CONFLICT (code, date) DO UPDATE SET
+            target_mean = excluded.target_mean,
+            target_high = excluded.target_high,
+            target_low = excluded.target_low,
+            target_median = excluded.target_median,
+            recommendation = excluded.recommendation,
+            num_analysts = excluded.num_analysts,
+            earnings_estimate_avg = excluded.earnings_estimate_avg,
+            revenue_estimate_avg = excluded.revenue_estimate_avg,
+            eps_trend_current = excluded.eps_trend_current,
+            eps_trend_7d_ago = excluded.eps_trend_7d_ago,
+            eps_trend_30d_ago = excluded.eps_trend_30d_ago,
+            updated_at = now()
+    """).fetchall()
+    conn.unregister("_tmp_ka")
     return rows[0][0] if rows else 0
 
 
@@ -759,6 +956,123 @@ def log_fetch(conn: duckdb.DuckDBPyConnection, date: str, status: str = "success
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [_norm_date(date), status, listings_count, prices_count, movers_count, filings_count, tagged, narratives, errors])
     return conn.execute("SELECT MAX(id) FROM kr_fetch_log").fetchone()[0]
+
+
+def get_stock_metrics(conn: duckdb.DuckDBPyConnection, code: str, limit: int = 1) -> Optional[Dict[str, Any]]:
+    """Get latest valuation metrics for a stock."""
+    row = conn.execute("""
+        SELECT code, date, market_cap, enterprise_value, pe_trailing, pe_forward,
+               pb_ratio, ps_ratio, dividend_yield, payout_ratio, beta,
+               roa, roe, gross_margin, ebitda_margin, operating_margin,
+               revenue_growth, earnings_growth, free_cashflow, operating_cashflow,
+               inst_holding_pct, insider_holding_pct, shares_outstanding, float_shares,
+               ma_50, ma_200, high_52w, low_52w
+        FROM kr_stock_metrics
+        WHERE code = ?
+        ORDER BY date DESC
+        LIMIT ?
+    """, [code, limit]).fetchone()
+    if row is None:
+        return None
+    return {
+        "code": row[0], "date": str(row[1]) if row[1] else None,
+        "market_cap": row[2], "enterprise_value": row[3],
+        "pe_trailing": row[4], "pe_forward": row[5],
+        "pb_ratio": row[6], "ps_ratio": row[7],
+        "dividend_yield": row[8], "payout_ratio": row[9],
+        "beta": row[10], "roa": row[11], "roe": row[12],
+        "gross_margin": row[13], "ebitda_margin": row[14], "operating_margin": row[15],
+        "revenue_growth": row[16], "earnings_growth": row[17],
+        "free_cashflow": row[18], "operating_cashflow": row[19],
+        "inst_holding_pct": row[20], "insider_holding_pct": row[21],
+        "shares_outstanding": row[22], "float_shares": row[23],
+        "ma_50": row[24], "ma_200": row[25],
+        "high_52w": row[26], "low_52w": row[27],
+    }
+
+
+def get_stock_financials(conn: duckdb.DuckDBPyConnection, code: str,
+                           statement_type: str = None) -> List[Dict[str, Any]]:
+    """Get quarterly financials for a stock. Optionally filter by BS/IS/CF."""
+    if statement_type:
+        rows = conn.execute("""
+            SELECT date, statement_type, metric_name, value
+            FROM kr_stock_financials
+            WHERE code = ? AND statement_type = ?
+            ORDER BY date DESC, statement_type, metric_name
+        """, [code, statement_type]).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT date, statement_type, metric_name, value
+            FROM kr_stock_financials
+            WHERE code = ?
+            ORDER BY date DESC, statement_type, metric_name
+        """, [code]).fetchall()
+    return [
+        {"date": str(r[0]), "statement_type": r[1], "metric_name": r[2], "value": r[3]}
+        for r in rows
+    ]
+
+
+def get_analyst_data(conn: duckdb.DuckDBPyConnection, code: str) -> Optional[Dict[str, Any]]:
+    """Get latest analyst consensus for a stock."""
+    row = conn.execute("""
+        SELECT code, date, target_mean, target_high, target_low, target_median,
+               recommendation, num_analysts, earnings_estimate_avg, revenue_estimate_avg,
+               eps_trend_current, eps_trend_7d_ago, eps_trend_30d_ago
+        FROM kr_analyst_data
+        WHERE code = ?
+        ORDER BY date DESC
+        LIMIT 1
+    """, [code]).fetchone()
+    if row is None:
+        return None
+    return {
+        "code": row[0], "date": str(row[1]) if row[1] else None,
+        "target_mean": row[2], "target_high": row[3],
+        "target_low": row[4], "target_median": row[5],
+        "recommendation": row[6], "num_analysts": row[7],
+        "earnings_estimate_avg": row[8], "revenue_estimate_avg": row[9],
+        "eps_trend_current": row[10], "eps_trend_7d_ago": row[11],
+        "eps_trend_30d_ago": row[12],
+    }
+
+
+def get_metrics_batch(conn: duckdb.DuckDBPyConnection, codes: List[str]) -> Dict[str, Optional[Dict]]:
+    """Get latest metrics for multiple stocks."""
+    if not codes:
+        return {}
+    placeholders = ",".join(["?"] * len(codes))
+    rows = conn.execute(f"""
+        SELECT code, date, market_cap, enterprise_value, pe_trailing, pe_forward,
+               pb_ratio, ps_ratio, dividend_yield, payout_ratio, beta,
+               roa, roe, gross_margin, ebitda_margin, operating_margin,
+               revenue_growth, earnings_growth, free_cashflow, operating_cashflow,
+               inst_holding_pct, insider_holding_pct, shares_outstanding, float_shares,
+               ma_50, ma_200, high_52w, low_52w,
+               ROW_NUMBER() OVER (PARTITION BY code ORDER BY date DESC) AS rn
+        FROM kr_stock_metrics
+        WHERE code IN ({placeholders})
+        QUALIFY rn = 1
+    """, codes).fetchall()
+    result = {c: None for c in codes}
+    for row in rows:
+        result[row[0]] = {
+            "code": row[0], "date": str(row[1]) if row[1] else None,
+            "market_cap": row[2], "enterprise_value": row[3],
+            "pe_trailing": row[4], "pe_forward": row[5],
+            "pb_ratio": row[6], "ps_ratio": row[7],
+            "dividend_yield": row[8], "payout_ratio": row[9],
+            "beta": row[10], "roa": row[11], "roe": row[12],
+            "gross_margin": row[13], "ebitda_margin": row[14], "operating_margin": row[15],
+            "revenue_growth": row[16], "earnings_growth": row[17],
+            "free_cashflow": row[18], "operating_cashflow": row[19],
+            "inst_holding_pct": row[20], "insider_holding_pct": row[21],
+            "shares_outstanding": row[22], "float_shares": row[23],
+            "ma_50": row[24], "ma_200": row[25],
+            "high_52w": row[26], "low_52w": row[27],
+        }
+    return result
 
 
 def get_fetch_status(conn: duckdb.DuckDBPyConnection, days: int = 7) -> pd.DataFrame:
