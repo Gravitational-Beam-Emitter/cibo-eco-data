@@ -61,12 +61,14 @@ BOARDS = {
 def fetch_board(code: str, start: str = "20200101", end: str = "") -> pd.DataFrame:
     """Fetch concept board daily K-line via AKShare (East Money backend).
 
-    Returns DataFrame with columns: date, open, close, high, low, volume, amount, change_pct
+    Retries up to 4x with jittered exponential backoff (5s → 10s → 20s → 30s).
     """
+    import random
     end = end or pd.Timestamp.now().strftime("%Y%m%d")
 
     import akshare as ak
-    for attempt in range(3):
+    last_err = None
+    for attempt in range(4):
         try:
             raw = ak.stock_board_concept_hist_em(
                 symbol=code, period="daily",
@@ -88,14 +90,24 @@ def fetch_board(code: str, start: str = "20200101", end: str = "") -> pd.DataFra
                 "change_pct": raw["涨跌幅"].astype(float),
             })
             return df
-        except Exception:
-            if attempt == 2:
-                raise
-            time.sleep(3 * (attempt + 1))
+        except Exception as e:
+            last_err = e
+            if attempt < 3:
+                delay = 5 * (2 ** attempt) + random.uniform(0, 3)
+                logger.warning(
+                    f"Board {code} attempt {attempt + 1}/4 failed: {e}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                time.sleep(delay)
+    logger.error(f"Board {code} failed after 4 attempts: {last_err}")
+    raise last_err
 
 
 class ConceptBoardHarness:
     """Harness for A-share concept board indices (光通信/芯片/AI算力/小金属/覆铜板)."""
+
+    _last_fetch: float = 0.0
+    _FETCH_GAP = 1.0  # min seconds between board fetches
 
     def __init__(self):
         self._cache: dict[str, pd.DataFrame] = {}
@@ -103,10 +115,18 @@ class ConceptBoardHarness:
     def _get_board(self, method: str) -> pd.DataFrame:
         if method in self._cache:
             return self._cache[method]
+
+        # Rate limit: min gap between AKShare calls
+        now = time.monotonic()
+        wait = self._last_fetch + self._FETCH_GAP - now
+        if wait > 0:
+            time.sleep(wait)
+
         code, label, _ = BOARDS[method]
         logger.info(f"Fetching concept board: {label} ({code})")
         df = fetch_board(code)
         self._cache[method] = df
+        self._last_fetch = time.monotonic()
         return df
 
     # ── 光通信 / 光芯片 ──
