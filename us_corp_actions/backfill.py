@@ -7,10 +7,22 @@ Usage:
 
 from __future__ import annotations
 
+import calendar
 import logging
 import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+
+
+def _clamp_end_date(end_date: str) -> str:
+    """Clamp end date to actual last day of month (2025-02-31 → 2025-02-28)."""
+    try:
+        datetime.strptime(end_date, "%Y-%m-%d")
+        return end_date  # Valid date
+    except ValueError:
+        dt = datetime.strptime(end_date[:7] + "-01", "%Y-%m-%d")
+        _, last_day = calendar.monthrange(dt.year, dt.month)
+        return dt.replace(day=last_day).strftime("%Y-%m-%d")
 
 from us_corp_actions.pipeline import (
     classify_and_prepare,
@@ -46,6 +58,7 @@ def backfill_range(
     conn = init_db(db_path)
     ticker_map = _load_ticker_map(conn)
 
+    end_date = _clamp_end_date(end_date)  # Fix 2025-02-31 → 2025-02-28
     start = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
 
