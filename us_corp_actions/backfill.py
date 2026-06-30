@@ -31,6 +31,7 @@ def backfill_range(
     end_date: str,
     db_path: Optional[str] = None,
     fetch_exhibits: bool = False,
+    fetch_items: bool = True,
 ) -> dict:
     """Backfill corporate actions for a date range using daily index only.
 
@@ -38,6 +39,7 @@ def backfill_range(
     - Skips RSS feed (won't have old dates anyway)
     - Uses daily index directly (complete coverage)
     - Optionally skips exhibit text (biggest time saver, fetch_exhibits=False)
+    - Set fetch_items=False for ultra-light mode (1 req/day, no per-filing HTTP)
 
     Returns summary dict with per-day results.
     """
@@ -68,7 +70,7 @@ def backfill_range(
             if filings:
                 actions = classify_and_prepare(
                     conn, filings, ticker_map,
-                    fetch_items=True,
+                    fetch_items=fetch_items,
                     fetch_exhibits=fetch_exhibits,
                 )
                 if actions:
@@ -117,10 +119,13 @@ if __name__ == "__main__":
 
     start = sys.argv[1] if len(sys.argv) > 1 else "2025-01-01"
     end = sys.argv[2] if len(sys.argv) > 2 else date.today().isoformat()
+    # Default: light mode (1 req/day, no per-filing HTTP). Pass --full for full items.
+    full_mode = "--full" in sys.argv
+    sys.argv = [a for a in sys.argv if a != "--full"]
 
-    logger.info(f"Backfill: {start} → {end}")
+    logger.info(f"Backfill ({'FULL' if full_mode else 'LIGHT'}): {start} → {end}")
     t0 = time.time()
-    result = backfill_range(start, end, fetch_exhibits=False)
+    result = backfill_range(start, end, fetch_exhibits=full_mode, fetch_items=full_mode)
     elapsed = time.time() - t0
 
     logger.info(
